@@ -11,3 +11,5 @@ O envio de dados não foi realizado no navegador durante a inspeção visual par
 A validação no navegador também confirmou que senhas divergentes exibem uma mensagem clara e impedem o envio do formulário, sem criar uma conta ou chamar o servidor.
 
 Os testes automatizados cobrem hash de senha, cadastro, login válido, login inválido, logout, bloqueio de procedimento protegido sem sessão e acesso ao mesmo procedimento com sessão de uma conta local. A suíte atual executou 57 testes aprovados e 1 teste de integração explicitamente ignorado.
+
+A versão publicada em `https://central-aler-hzdtze6w.manus.space` foi verificada após a atualização e apresenta a tela pública de **Entrar** e **Criar conta**, com os campos de e-mail e senha e sem direcionamento ao provedor OAuth.

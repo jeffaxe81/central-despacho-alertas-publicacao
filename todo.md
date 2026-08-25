@@ -20,4 +20,4 @@
 - [x] Preservar a autorização dos procedimentos protegidos e o isolamento dos dados por usuário.
 - [x] Criar telas responsivas de cadastro, login e logout para a Central de Alertas.
 - [x] Cobrir cadastro, login inválido, login válido, logout e acesso protegido com testes automatizados.
-- [ ] Publicar a atualização de autenticação e orientar o novo acesso por e-mail e senha.
+- [x] Publicar a atualização de autenticação e orientar o novo acesso por e-mail e senha.

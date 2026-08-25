@@ -2,9 +2,9 @@
 
 ## Acesso à aplicação
 
-A versão publicada está disponível em [https://central-aler-hzdtze6w.manus.space](https://central-aler-hzdtze6w.manus.space). Abra o endereço em uma janela normal do navegador e selecione **Entrar**. Conclua a autenticação pelo provedor escolhido; após o retorno, o painel exibirá a visão geral, o simulador, o histórico, o workflow e as integrações.
+A versão publicada está disponível em [https://central-aler-hzdtze6w.manus.space](https://central-aler-hzdtze6w.manus.space). O acesso agora usa **e-mail e senha**, sem login por OAuth. Na primeira visita, selecione **Criar conta**, informe nome, e-mail, uma senha com ao menos dez caracteres e a confirmação da senha. A conta é criada com uma sessão segura e o painel é aberto automaticamente.
 
-> Se houver uma tentativa de login anterior aberta, reinicie o fluxo pelo botão **Entrar** na página inicial. A versão atualizada já valida o estado de OAuth corretamente no retorno do provedor.
+Em acessos posteriores, selecione **Entrar** e informe o mesmo e-mail e senha. Cada conta possui configurações, simulações e histórico próprios. A recuperação de senha por e-mail não está habilitada nesta versão; guarde a senha em um gerenciador confiável.
 
 ## Operação segura
 
