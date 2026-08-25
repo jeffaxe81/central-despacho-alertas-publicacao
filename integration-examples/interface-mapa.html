@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Selecionar coordenadas do alerta</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; background: #07111d; color: #e5eef8; }
+      body { margin: 0; padding: 24px; }
+      main { max-width: 860px; margin: auto; padding: 24px; background: #0c1b2b; border: 1px solid #274155; border-radius: 16px; }
+      h1 { margin-top: 0; font-size: 1.4rem; } p { color: #9bb1c7; line-height: 1.5; }
+      #map { height: 360px; border-radius: 12px; overflow: hidden; background: #091522; }
+      .form-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
+      label { display: grid; gap: 6px; color: #bdccdc; font-size: .9rem; }
+      input { padding: 11px; border: 1px solid #40566e; border-radius: 8px; background: #07111d; color: inherit; font: inherit; }
+      pre { margin: 16px 0 0; padding: 14px; border-radius: 10px; overflow: auto; background: #07111d; color: #9ee7f2; }
+      @media (max-width: 560px) { body { padding: 12px; } main { padding: 16px; } #map { height: 280px; } .form-grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Localização da ocorrência</h1>
+      <p>Clique no mapa ou arraste o marcador. A latitude e a longitude abaixo podem ser ajustadas manualmente.</p>
+      <div id="map" aria-label="Mapa para seleção do local da ocorrência"></div>
+      <div class="form-grid">
+        <label>Latitude <input id="latitude" type="number" step="0.000001" min="-90" max="90" /></label>
+        <label>Longitude <input id="longitude" type="number" step="0.000001" min="-180" max="180" /></label>
+      </div>
+      <pre id="coordinates">Aguardando seleção…</pre>
+    </main>
+    <!--
+      Este exemplo pressupõe que a aplicação já carregou Google Maps pelo proxy da plataforma.
+      Em um projeto Manus, carregue o Maps com o componente MapView existente; não inclua chave de API no HTML.
+    -->
+    <script type="module" src="./interface-mapa.js"></script>
+  </body>
+</html>

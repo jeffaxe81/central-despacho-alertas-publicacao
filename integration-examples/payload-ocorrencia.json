@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "id": "SIM-20260822-000001",
+  "code": "URB-SEM-000001",
+  "priority": "HIGH",
+  "status": "NEW",
+  "createdAt": "2026-08-22T12:30:00.000Z",
+  "eventType": "TRAFFIC_LIGHT",
+  "title": "Falha em semáforo",
+  "narrative": "Sinaleira apagada na Rua das Flores, nº 142, causando congestionamento no cruzamento com a Av. Central.",
+  "location": {
+    "address": "Rua das Flores, nº 142",
+    "neighborhood": "Centro",
+    "latitude": -15.793889,
+    "longitude": -47.882778
+  },
+  "source": {
+    "system": "central-despacho-alertas",
+    "mode": "test",
+    "correlationId": "SIM-20260822-000001"
+  },
+  "metadata": {
+    "category": "semaforos",
+    "simulationSeed": "teste-semaforo-001"
+  }
+}

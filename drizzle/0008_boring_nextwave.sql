@@ -1,0 +1,1 @@
+ALTER TABLE `alert_types` ADD `use_general_location` boolean DEFAULT true NOT NULL;

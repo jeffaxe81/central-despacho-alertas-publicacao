@@ -1,0 +1,1 @@
+ALTER TABLE `dispatched_alerts` ADD `simulation_seed` varchar(64) NOT NULL;

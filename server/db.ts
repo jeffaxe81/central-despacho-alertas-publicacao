@@ -1,7 +1,26 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import {
+  alertTypes,
+  dispatchedAlerts,
+  generalSettings,
+  InsertUser,
+  mockReceipts,
+  NewAlertType,
+  receivedWorkflowOccurrences,
+  users,
+  workflowProcessLogs,
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
+import {
+  DEFAULT_EVENT_SETTINGS,
+  DEFAULT_PAYLOAD_TEMPLATE,
+  DEFAULT_SIMULATION_COORDINATES,
+  EVENT_CATEGORIES,
+  type DeliveryStatus,
+  type EventCategory,
+  type Severity,
+} from "../shared/alertSimulation";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -89,4 +108,281 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function ensureDefaultAlertTypes(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  for (const category of EVENT_CATEGORIES) {
+    const defaults = DEFAULT_EVENT_SETTINGS[category.key];
+    const values: NewAlertType = {
+      userId,
+      category: category.key,
+      name: category.label,
+      defaultDescription: defaults.description,
+      defaultSeverity: defaults.severity,
+      endpointUrl: "mock://central-despacho",
+      headersJson: "{}",
+      apiKeyHeader: "x-api-key",
+      payloadTemplate: DEFAULT_PAYLOAD_TEMPLATE,
+      isTestMode: true,
+      autoEnabled: false,
+      autoIntervalMinutes: 15,
+      defaultLatitude: DEFAULT_SIMULATION_COORDINATES.latitude,
+      defaultLongitude: DEFAULT_SIMULATION_COORDINATES.longitude,
+      useGeneralLocation: true,
+    };
+    await db
+      .insert(alertTypes)
+      .values(values)
+      .onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
+  }
+  return db.select().from(alertTypes).where(eq(alertTypes.userId, userId));
+}
+
+export async function listAlertTypes(userId: number) {
+  await ensureDefaultAlertTypes(userId);
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(alertTypes).where(eq(alertTypes.userId, userId));
+}
+
+export async function getGeneralSettings(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const records = await db.select().from(generalSettings).where(eq(generalSettings.userId, userId)).limit(1);
+  if (records[0]) return records[0];
+
+  await db.insert(generalSettings).values({
+    userId,
+    defaultLatitude: DEFAULT_SIMULATION_COORDINATES.latitude,
+    defaultLongitude: DEFAULT_SIMULATION_COORDINATES.longitude,
+  }).onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
+
+  const created = await db.select().from(generalSettings).where(eq(generalSettings.userId, userId)).limit(1);
+  if (!created[0]) throw new Error("Não foi possível inicializar as configurações gerais.");
+  return created[0];
+}
+
+export async function updateGeneralSettings(userId: number, input: { defaultLatitude: number; defaultLongitude: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db.insert(generalSettings).values({ userId, ...input }).onDuplicateKeyUpdate({
+    set: { ...input, updatedAt: new Date() },
+  });
+  return getGeneralSettings(userId);
+}
+
+export async function resetGeneratedOperationalData(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  return db.transaction(async tx => {
+    const workflowLogs = await tx.delete(workflowProcessLogs).where(eq(workflowProcessLogs.userId, userId));
+    const workflowOccurrences = await tx.delete(receivedWorkflowOccurrences).where(eq(receivedWorkflowOccurrences.userId, userId));
+    const receipts = await tx.delete(mockReceipts).where(eq(mockReceipts.userId, userId));
+    const dispatched = await tx.delete(dispatchedAlerts).where(eq(dispatchedAlerts.userId, userId));
+    return {
+      workflowLogs: Number(workflowLogs[0].affectedRows ?? 0),
+      workflowOccurrences: Number(workflowOccurrences[0].affectedRows ?? 0),
+      receipts: Number(receipts[0].affectedRows ?? 0),
+      dispatchedAlerts: Number(dispatched[0].affectedRows ?? 0),
+    };
+  });
+}
+
+export async function getAlertTypeForUser(userId: number, alertTypeId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const records = await db
+    .select()
+    .from(alertTypes)
+    .where(and(eq(alertTypes.id, alertTypeId), eq(alertTypes.userId, userId)))
+    .limit(1);
+  return records[0];
+}
+
+export async function getAlertTypeByScheduleTask(taskUid: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const records = await db
+    .select()
+    .from(alertTypes)
+    .where(eq(alertTypes.scheduleCronTaskUid, taskUid))
+    .limit(1);
+  return records[0];
+}
+
+export async function getAlertTypeByApiKey(apiKey: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const records = await db.select().from(alertTypes).where(eq(alertTypes.apiKey, apiKey)).limit(1);
+  return records[0];
+}
+
+export async function getWorkflowOccurrenceByExternalId(alertTypeId: number, externalId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const records = await db
+    .select()
+    .from(receivedWorkflowOccurrences)
+    .where(and(eq(receivedWorkflowOccurrences.alertTypeId, alertTypeId), eq(receivedWorkflowOccurrences.externalId, externalId)))
+    .limit(1);
+  return records[0];
+}
+
+export async function createWorkflowOccurrence(input: {
+  userId: number;
+  alertTypeId: number;
+  externalId: string;
+  code: string;
+  priority: string;
+  status: string;
+  eventType: string;
+  title: string;
+  narrative: string;
+  address: string;
+  neighborhood: string;
+  latitude: number;
+  longitude: number;
+  payloadJson: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(receivedWorkflowOccurrences).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function createWorkflowProcessLog(input: {
+  userId?: number | null;
+  alertTypeId?: number | null;
+  externalId?: string | null;
+  outcome: string;
+  httpStatus: number;
+  reason?: string | null;
+  payloadJson?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(workflowProcessLogs).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateAlertType(
+  userId: number,
+  alertTypeId: number,
+  values: Partial<{
+    name: string;
+    defaultDescription: string;
+    defaultSeverity: Severity;
+    endpointUrl: string;
+    headersJson: string;
+    authToken: string | null;
+    apiKey: string | null;
+    apiKeyHeader: string;
+    payloadTemplate: string;
+    isTestMode: boolean;
+    autoEnabled: boolean;
+    autoIntervalMinutes: number;
+    defaultLatitude: number;
+    defaultLongitude: number;
+    useGeneralLocation: boolean;
+    scheduleCronTaskUid: string | null;
+  }>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db
+    .update(alertTypes)
+    .set({ ...values, updatedAt: new Date() })
+    .where(and(eq(alertTypes.id, alertTypeId), eq(alertTypes.userId, userId)));
+  return getAlertTypeForUser(userId, alertTypeId);
+}
+
+export async function createDispatchedAlert(input: {
+  userId: number;
+  alertTypeId: number;
+  category: EventCategory;
+  eventName: string;
+  address: string;
+  neighborhood: string;
+  latitude: number;
+  longitude: number;
+  narrative: string;
+  severity: Severity;
+  endpointUrl: string;
+  payloadJson: string;
+  isSimulated: boolean;
+  simulationSeed: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(dispatchedAlerts).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateDispatchedAlert(
+  alertId: number,
+  input: {
+    status: DeliveryStatus;
+    responseHttpStatus?: number | null;
+    responseSummary?: string | null;
+    failureReason?: string | null;
+    attemptCount: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db
+    .update(dispatchedAlerts)
+    .set({ ...input, updatedAt: new Date() })
+    .where(eq(dispatchedAlerts.id, alertId));
+}
+
+export async function recordMockReceipt(input: {
+  userId: number;
+  dispatchedAlertId: number;
+  payloadJson: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db.insert(mockReceipts).values(input);
+}
+
+export async function listDispatchedAlerts(userId: number, limit = 60) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(dispatchedAlerts)
+    .where(eq(dispatchedAlerts.userId, userId))
+    .orderBy(desc(dispatchedAlerts.sentAt))
+    .limit(limit);
+}
+
+export async function queryWorkflowMonitor(database: NonNullable<Awaited<ReturnType<typeof getDb>>>, userId: number, limit = 60) {
+  const [occurrences, logs] = await Promise.all([
+    database.select().from(receivedWorkflowOccurrences).where(eq(receivedWorkflowOccurrences.userId, userId)).orderBy(desc(receivedWorkflowOccurrences.receivedAt)).limit(limit),
+    database.select().from(workflowProcessLogs).where(eq(workflowProcessLogs.userId, userId)).orderBy(desc(workflowProcessLogs.createdAt)).limit(limit),
+  ]);
+  return { occurrences, logs };
+}
+
+export async function getWorkflowMonitor(userId: number, limit = 60) {
+  const db = await getDb();
+  if (!db) return { occurrences: [], logs: [] };
+  return queryWorkflowMonitor(db, userId, limit);
+}
+
+export async function getDashboardMetrics(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  return db
+    .select({
+      category: dispatchedAlerts.category,
+      status: dispatchedAlerts.status,
+      total: sql<number>`count(*)`,
+    })
+    .from(dispatchedAlerts)
+    .where(and(eq(dispatchedAlerts.userId, userId), gte(dispatchedAlerts.sentAt, since)))
+    .groupBy(dispatchedAlerts.category, dispatchedAlerts.status);
+}
