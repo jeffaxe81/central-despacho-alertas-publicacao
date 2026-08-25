@@ -8,7 +8,9 @@
 - [x] Preservar a automação periódica de alertas conforme o mecanismo compatível com o ambiente de publicação.
 - [x] Executar verificações de tipagem, testes automatizados e build de produção, corrigindo incompatibilidades encontradas.
 - [x] Verificar visualmente a interface migrada em desktop e em viewport móvel, preservando o estilo elegante existente.
-- [ ] Salvar o checkpoint final da versão validada para entrega.
-- [ ] Publicar a aplicação pelo painel do projeto e registrar a URL de produção acessível.
+- [x] Salvar o checkpoint final da versão validada para entrega.
+- [x] Publicar a aplicação pelo painel do projeto e registrar a URL de produção acessível: https://central-aler-hzdtze6w.manus.space
 - [ ] Validar a versão publicada com autenticação e banco ativos no ambiente de produção.
 - [ ] Entregar as instruções de acesso e de configuração das integrações externas opcionais.
+- [x] Corrigir a rejeição de estado OAuth inválido no login da versão publicada.
+- [ ] Republicar a versão com a correção OAuth.

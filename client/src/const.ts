@@ -17,8 +17,15 @@ export const startLogin = () => {
   const appId = import.meta.env.VITE_APP_ID;
   const redirectUri = `${window.location.origin}/api/oauth/callback`;
 
+  const lastLoginStartKey = "central-alertas-oauth-started-at";
+  const lastLoginStart = Number(sessionStorage.getItem(lastLoginStartKey) ?? "0");
+  if (Date.now() - lastLoginStart < 2_000) return;
+  sessionStorage.setItem(lastLoginStartKey, String(Date.now()));
+
   const nonce = crypto.randomUUID();
-  document.cookie = `${OAUTH_STATE_COOKIE}=${nonce}; Path=/; Max-Age=600; SameSite=None; Secure`;
+  // OAuth returns through a top-level GET navigation. Lax keeps the nonce
+  // available for that callback without relying on third-party cookie rules.
+  document.cookie = `${OAUTH_STATE_COOKIE}=${nonce}; Path=/; Max-Age=600; SameSite=Lax; Secure`;
   const state = encodeOAuthState({ redirectUri, nonce });
 
   const url = new URL(`${oauthPortalUrl}/app-auth`);
