@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { randomUUID } from "node:crypto";
 import {
   alertTypes,
   dispatchedAlerts,
@@ -106,6 +107,39 @@ export async function getUserByOpenId(openId: string) {
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
 
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return result[0];
+}
+
+export async function createPasswordUser(input: { name: string; email: string; passwordHash: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+
+  const openId = `local_${randomUUID().replaceAll("-", "")}`;
+  const result = await db.insert(users).values({
+    openId,
+    name: input.name,
+    email: input.email,
+    passwordHash: input.passwordHash,
+    loginMethod: "password",
+    role: "user",
+    lastSignedIn: new Date(),
+  });
+
+  const created = await db.select().from(users).where(eq(users.id, Number(result[0].insertId))).limit(1);
+  if (!created[0]) throw new Error("Não foi possível criar a conta.");
+  return created[0];
+}
+
+export async function recordPasswordLogin(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, userId));
 }
 
 export async function ensureDefaultAlertTypes(userId: number) {

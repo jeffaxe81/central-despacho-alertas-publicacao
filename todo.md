@@ -10,7 +10,14 @@
 - [x] Verificar visualmente a interface migrada em desktop e em viewport móvel, preservando o estilo elegante existente.
 - [x] Salvar o checkpoint final da versão validada para entrega.
 - [x] Publicar a aplicação pelo painel do projeto e registrar a URL de produção acessível: https://central-aler-hzdtze6w.manus.space
-- [ ] Validar a versão publicada com autenticação e banco ativos no ambiente de produção.
-- [ ] Entregar as instruções de acesso e de configuração das integrações externas opcionais.
+- [x] Validar a versão publicada com autenticação e banco ativos no ambiente de produção.
+- [x] Entregar as instruções de acesso e de configuração das integrações externas opcionais.
 - [x] Corrigir a rejeição de estado OAuth inválido no login da versão publicada.
-- [ ] Republicar a versão com a correção OAuth.
+- [x] Republicar a versão com a correção OAuth.
+- [x] Preparar instruções de acesso à versão publicada e de configuração das integrações externas opcionais.
+- [x] Substituir a autenticação OAuth por cadastro aberto com e-mail e senha.
+- [x] Armazenar senhas com hash seguro e criar sessões HTTP-only para usuários locais.
+- [x] Preservar a autorização dos procedimentos protegidos e o isolamento dos dados por usuário.
+- [x] Criar telas responsivas de cadastro, login e logout para a Central de Alertas.
+- [x] Cobrir cadastro, login inválido, login válido, logout e acesso protegido com testes automatizados.
+- [ ] Publicar a atualização de autenticação e orientar o novo acesso por e-mail e senha.

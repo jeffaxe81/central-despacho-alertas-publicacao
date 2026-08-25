@@ -1,5 +1,6 @@
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { parse as parseCookie } from "cookie";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   DEFAULT_PAYLOAD_TEMPLATE,
@@ -15,10 +16,14 @@ import { makeRequest, type GeocodingResult } from "./_core/map";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
+import { sdk } from "./_core/sdk";
+import { hashPassword, verifyPassword } from "./passwordAuth";
 
 const categoryValues = EVENT_CATEGORIES.map(item => item.key) as [string, ...string[]];
 const severityValues = [...SEVERITY_OPTIONS] as [string, ...string[]];
 const deliveryStatusValues = [...DELIVERY_STATUS_OPTIONS] as [string, ...string[]];
+const passwordInput = z.string().min(10, "Use pelo menos 10 caracteres na senha.").max(128);
+const emailInput = z.string().trim().toLowerCase().email("Informe um e-mail válido.").max(320);
 const axePriorityBySeverity: Record<Severity, "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"> = {
   baixa: "LOW",
   media: "MEDIUM",
@@ -90,6 +95,34 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+    register: publicProcedure.input(z.object({
+      name: z.string().trim().min(2, "Informe seu nome.").max(120),
+      email: emailInput,
+      password: passwordInput,
+    })).mutation(async ({ ctx, input }) => {
+      const existing = await db.getUserByEmail(input.email);
+      if (existing) throw new TRPCError({ code: "CONFLICT", message: "Já existe uma conta com este e-mail." });
+
+      const user = await db.createPasswordUser({
+        name: input.name,
+        email: input.email,
+        passwordHash: await hashPassword(input.password),
+      });
+      const session = await sdk.createSessionToken(user.openId, { name: user.name ?? "", expiresInMs: ONE_YEAR_MS });
+      ctx.res.cookie(COOKIE_NAME, session, { ...getSessionCookieOptions(ctx.req), maxAge: ONE_YEAR_MS });
+      return { id: user.id, name: user.name, email: user.email };
+    }),
+    login: publicProcedure.input(z.object({ email: emailInput, password: passwordInput })).mutation(async ({ ctx, input }) => {
+      const user = await db.getUserByEmail(input.email);
+      if (!user || !await verifyPassword(input.password, user.passwordHash)) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "E-mail ou senha inválidos." });
+      }
+
+      await db.recordPasswordLogin(user.id);
+      const session = await sdk.createSessionToken(user.openId, { name: user.name ?? "", expiresInMs: ONE_YEAR_MS });
+      ctx.res.cookie(COOKIE_NAME, session, { ...getSessionCookieOptions(ctx.req), maxAge: ONE_YEAR_MS });
+      return { id: user.id, name: user.name, email: user.email };
+    }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
