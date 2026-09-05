@@ -84,7 +84,15 @@ Implementado o modelo preferencial indicado pela Seção 10 do Master (**Shared 
 
 **Fase 3 (backlog, não iniciada):** quando existir um recurso multiusuário por tenant (ex.: equipe/organização vendo dados uns dos outros), aí sim adicionar filtro `WHERE tenant_id = ?` nas leituras relevantes e índices compostos (`tenant_id` + coluna já indexada).
 
-## 11. Backlog atualizado (sem prazo, conforme Seção 33)
+## 12. Ciclo 6 — CI mínimo (concluído)
+
+Fechado o item de risco levantado no `RELEASE-1.0.0.md` ("sem CI, cada push depende de validação manual local"):
+
+- `.github/workflows/ci.yml`: pipeline mínimo (Seção 24, qualidade bloqueante) rodando em todo push/PR para `main`: instala dependências, `pnpm run check` (tipagem), `pnpm test` (suíte completa), `pnpm run build` (build de produção).
+- Validado localmente antes de criar o workflow: `pnpm run build` funciona sem `DATABASE_URL` (bundling estático; nenhuma conexão real ao banco ocorre no build).
+- **Não foi possível observar uma execução real do workflow no GitHub Actions nesta sessão** (isso só acontece depois que o arquivo for publicado e um push/PR disparar o job) — declarado explicitamente, não presumido como "CI verde".
+
+## 13. Backlog atualizado (sem prazo, conforme Seção 33)
 
 | Item | Prioridade | Depende de |
 | --- | --- | --- |

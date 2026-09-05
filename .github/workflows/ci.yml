@@ -1,0 +1,38 @@
+name: CI
+
+# Pipeline minimo de qualidade bloqueante (Secao 24 do Prompt Master):
+# tipagem, testes automatizados e build. Nao requer banco de dados real -
+# db.ts opera em modo degradado (sem DATABASE_URL) e os testes usam mocks.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Checagem de tipos (tsc --noEmit)
+        run: pnpm run check
+
+      - name: Testes automatizados
+        run: pnpm test
+
+      - name: Build de produção
+        run: pnpm run build
