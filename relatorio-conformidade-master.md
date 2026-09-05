@@ -50,13 +50,25 @@ Extraído o Framework de Conectores (Seção 9) a partir da duplicação AXE/CRM
 - Corrigido `vitest.config.ts`: `shared/**/*.test.ts` não estava no `include`, então os testes de contrato não rodavam. Achado durante a validação deste ciclo — sem essa correção, o teste de contrato existia mas nunca era executado (violaria a Seção 24, qualidade bloqueante).
 - Suíte completa reexecutada após cada mudança: **62 testes passando, 1 skip pré-existente**; `tsc --noEmit` limpo.
 
-## 5. Backlog registrado (sem prazo, conforme Seção 33)
+## 7. Ciclo 3 — Dispatcher passa a consultar o registro de conectores (concluído e testado)
+
+Fechada a lacuna registrada no backlog do Ciclo 2 ("servidor ainda não consulta o registro"):
+
+- `server/alertEngine.ts`: nova função `matchConnectorByPayload(payload)` identifica, pelo campo `eventType` do payload já interpolado, a qual `ConnectorDescriptor` registrado ele corresponde.
+- **Trava de segurança adicionada:** se o conector identificado estiver em status `"proposta"` (hoje, o CRM) e `isTestMode` estiver desligado, o despacho é bloqueado antes de qualquer chamada de rede, com mensagem explícita apontando para este relatório. Isso impede que um usuário desligue o modo teste manualmente e envie, sem querer, para um contrato ainda não confirmado — a garantia que antes só existia como *default* na UI (Ciclo 2) agora é reforçada no servidor.
+- A lógica antes específica do AXE (`isAlrtAxeEnvelope`) foi generalizada para usar o mesmo registro, sem alterar o comportamento já homologado (headers, HMAC, exigência de API key).
+- Testes novos em `server/alertEngine.test.ts`: bloqueio do conector "proposta" fora do modo teste, e confirmação de que o mesmo conector funciona normalmente em modo teste (mock interno).
+- Suíte completa: **64 testes passando, 1 skip pré-existente**; `tsc --noEmit` limpo.
+
+Com isso, o Framework de Conectores cobre agora as três camadas: contrato (`shared/connectors`), UI (`connectorProfile.ts`) e dispatcher (`alertEngine.ts`).
+
+## 8. Backlog atualizado (sem prazo, conforme Seção 33)
 
 | Item | Prioridade | Depende de |
 | --- | --- | --- |
 | Confirmar contrato oficial do CRM (schema, auth, endpoint) e então ativar o conector CRM em produção | Alta | Time do CRM fornecer contrato equivalente ao `CONTRATO_ENTRADA_ALRT_AXE.md` |
 | Adicionar `tenant_id` ao schema (`alert_types`, `dispatched_alerts`, `general_settings`) preservando `userId` como está, para permitir multi-tenant sem quebrar o modelo atual | Média | Decisão de produto sobre shared-DB + tenant_id (Seção 10) |
-| Estender o Framework de Conectores para o lado servidor: hoje o registro (`shared/connectors`) descreve o contrato, mas `alertEngine.ts`/`dispatchConfiguredAlert` ainda não consultam o `ConnectorDescriptor` para validar auth/versão antes de enviar | Média-Alta | Nenhuma; pode iniciar já no próximo ciclo |
+| Estender o Framework de Conectores para o lado servidor: hoje o registro (`shared/connectors`) descreve o contrato, mas `alertEngine.ts`/`dispatchConfiguredAlert` ainda não consultam o `ConnectorDescriptor` para validar auth/versão antes de enviar | ~~Média-Alta~~ **Concluído no Ciclo 3** | — |
 | Avaliar modelo de publicação por contrato/barramento (em vez de POST direto por categoria) para múltiplos consumidores simultâneos | Média | Definição de qual barramento (fila, webhook registry, etc.) |
 | Observabilidade: logs estruturados com correlation ID ponta a ponta, métricas de entrega por destino | Média | Nenhuma |
 | Cofre de segredos dedicado para API keys/tokens armazenados por categoria | Baixa-Média | Infraestrutura de secrets management |
@@ -67,4 +79,4 @@ Extraído o Framework de Conectores (Seção 9) a partir da duplicação AXE/CRM
 - Nenhum push foi feito — apenas checkpoints locais (`git commit`). Não há credencial de escrita configurada para este repositório remoto.
 - Nenhuma migração de banco foi criada (o gap de `tenant_id` está registrado em backlog, não implementado).
 - Nenhum endpoint real de CRM foi contatado ou validado — o conector é uma proposta de schema aguardando confirmação.
-- O lado servidor (`alertEngine.ts`) ainda não consulta o registro de conectores; a extração cobriu o contrato e a camada de UI/testes, não o dispatcher em si (registrado em backlog).
+- O lado servidor (`alertEngine.ts`) ainda não consulta o registro de conectores; a extração cobriu o contrato e a camada de UI/testes, não o dispatcher em si (registrado em backlog). **[Concluído no Ciclo 3 — ver Seção 7]**

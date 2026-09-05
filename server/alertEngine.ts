@@ -3,6 +3,8 @@ import type { AlertType } from "../drizzle/schema";
 import { createHash, createHmac } from "node:crypto";
 import * as db from "./db";
 import { deliverToInternalMock } from "./mockDispatch";
+import { CONNECTORS } from "../shared/connectors/registry";
+import type { ConnectorDescriptor } from "../shared/connectors/types";
 import { DEFAULT_SIMULATION_COORDINATES, type EventCategory, type Severity } from "../shared/alertSimulation";
 
 const STREETS = [
@@ -192,6 +194,15 @@ function addPayloadCorrelationHeaders(headers: Record<string, string>, payload: 
   if (eventId && !hasHeader(headers, "x-request-timestamp")) headers["x-request-timestamp"] = headerValue(headers, "x-timestamp") ?? new Date().toISOString();
 }
 
+export const eventTypeDiscriminator = "eventType";
+
+/** Identifica, pelo campo eventType do payload interpolado, a qual conector registrado ele corresponde. */
+export function matchConnectorByPayload(payload: Record<string, unknown>): ConnectorDescriptor | undefined {
+  const eventType = typeof payload[eventTypeDiscriminator] === "string" ? (payload[eventTypeDiscriminator] as string) : undefined;
+  if (!eventType) return undefined;
+  return CONNECTORS.find(connector => connector.payloadTemplate.includes(`"eventType": "${eventType}"`));
+}
+
 export function retryDelayFromResponse(response: Response, fallbackMilliseconds: number) {
   const retryAfter = response.headers.get("retry-after")?.trim();
   if (!retryAfter) return fallbackMilliseconds;
@@ -357,7 +368,8 @@ export async function dispatchConfiguredAlert(
   };
   const interpolatedPayload = interpolatePayload(alertType.payloadTemplate, context);
   const nestedLocation = interpolatedPayload.location;
-  const isAlrtAxeEnvelope = interpolatedPayload.eventType === "alert.received" &&
+  const matchedConnector = matchConnectorByPayload(interpolatedPayload);
+  const isAlrtAxeEnvelope = matchedConnector?.id === "axe-dispatch" &&
     typeof interpolatedPayload.eventId === "string" &&
     typeof interpolatedPayload.idempotencyKey === "string";
   const payload = {
@@ -390,6 +402,11 @@ export async function dispatchConfiguredAlert(
   });
 
   try {
+    if (matchedConnector?.status === "proposta" && !alertType.isTestMode) {
+      throw new Error(
+        `O conector "${matchedConnector.label}" ainda é uma proposta sem contrato oficial confirmado; envio fora do modo teste está bloqueado (ver relatorio-conformidade-master.md).`
+      );
+    }
     if (!alertType.isTestMode && isAlrtAxeEnvelope && !alertType.apiKey?.trim()) {
       throw new Error("Configure a API key X-ALRT-API-Key antes do envio ALRT → AXE.");
     }

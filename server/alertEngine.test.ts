@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AlertType } from "../drizzle/schema";
 import { createHmac } from "node:crypto";
 import express from "express";
-import { ALRT_AXE_INGRESS_PAYLOAD_TEMPLATE, AXE_DISPATCH_PAYLOAD_TEMPLATE } from "../shared/alertSimulation";
+import { ALRT_AXE_INGRESS_PAYLOAD_TEMPLATE, ALRT_CRM_INGRESS_PAYLOAD_TEMPLATE, AXE_DISPATCH_PAYLOAD_TEMPLATE } from "../shared/alertSimulation";
 import {
   dispatchConfiguredAlert,
   createAlrtHmacSignature,
@@ -304,6 +304,38 @@ describe("despacho e histórico", () => {
     expect(result).toMatchObject({ ok: false, attempts: 0, failureReason: expect.stringMatching(/API key X-ALRT-API-Key/i) });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mockDb.updateDispatchedAlert).toHaveBeenCalledWith(92, expect.objectContaining({ status: "falha", attemptCount: 0 }));
+  });
+
+  it("bloqueia envio fora do modo teste para conector ainda em status 'proposta' (CRM)", async () => {
+    mockDb.createDispatchedAlert.mockResolvedValue(93);
+    mockDb.updateDispatchedAlert.mockResolvedValue(undefined);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock as typeof fetch;
+
+    const result = await dispatchConfiguredAlert({
+      ...mockAlertType,
+      isTestMode: false,
+      payloadTemplate: ALRT_CRM_INGRESS_PAYLOAD_TEMPLATE,
+    });
+
+    expect(result).toMatchObject({ ok: false, attempts: 0, failureReason: expect.stringMatching(/proposta sem contrato oficial/i) });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockDb.updateDispatchedAlert).toHaveBeenCalledWith(93, expect.objectContaining({ status: "falha", attemptCount: 0 }));
+  });
+
+  it("permite o conector CRM em modo teste (mock interno), sem bloqueio", async () => {
+    mockDb.createDispatchedAlert.mockResolvedValue(94);
+    mockDb.updateDispatchedAlert.mockResolvedValue(undefined);
+    mockDb.recordMockReceipt.mockResolvedValue(undefined);
+
+    const result = await dispatchConfiguredAlert({
+      ...mockAlertType,
+      isTestMode: true,
+      payloadTemplate: ALRT_CRM_INGRESS_PAYLOAD_TEMPLATE,
+    });
+
+    expect(result).toMatchObject({ ok: true, status: 202 });
+    expect(result.payload).toMatchObject({ eventType: "occurrence.registered" });
   });
 });
 
