@@ -74,14 +74,22 @@ Implementado o modelo preferencial indicado pela Seção 10 do Master (**Shared 
 - Suíte completa reexecutada: **64 testes passando** (nenhum teste novo era necessário nesta fase, pois não há comportamento de aplicação para verificar sem um banco real — o valor padrão é responsabilidade do MySQL); `tsc --noEmit` limpo.
 - **Migração não aplicada** a nenhum banco real: não há `DATABASE_URL` de produção/homologação configurada nesta sessão, nem autorização para rodar `drizzle-kit migrate` contra um ambiente real (Seção 46 — não declarar migração aplicada sem evidência).
 
-**Fase 2 (backlog, não iniciada neste ciclo):** isolamento lógico de fato — `db.ts` passar a receber/propagar `tenantId` em cada leitura e escrita, `routers.ts` extrair o tenant do contexto de autenticação, e índices compostos (`tenant_id` + colunas já indexadas) para performance. Isso é mudança de regra de negócio, não de schema, e por isso foi deixada para um próximo ciclo dedicado.
+**Fase 2 (concluída neste ciclo — propagação nas escritas):**
+- `getUserTenantId(userId)` em `server/db.ts`: resolve o tenant real do usuário (consulta `users.tenantId`), com fallback ao `DEFAULT_TENANT_ID` quando o banco não está disponível.
+- Todas as funções de **escrita** que criam registros por usuário passaram a carimbar `tenantId` com o valor real (em vez de depender só do default do banco): `ensureDefaultAlertTypes`, `getGeneralSettings`/`updateGeneralSettings`, `createWorkflowOccurrence`, `createWorkflowProcessLog`, `createDispatchedAlert`, `recordMockReceipt`.
+- `upsertUser`/`createPasswordUser` foram deixados como estão: continuam usando o default do banco (`"default"`), pois **não existe hoje um fluxo de onboarding que atribua um usuário a um tenant específico** — inventar essa atribuição seria violar a Seção 46 (não inventar requisito).
+- Teste novo: `server/db.tenant.test.ts` cobre o fallback de `getUserTenantId` sem banco disponível. A resolução real via `users.tenantId` em um banco vivo **não foi testada nesta sessão** (não há banco real disponível) — declarado explicitamente, não fica implícito como "testado".
+- **Leituras não foram alteradas.** Motivo: hoje `userId` já é exclusivo por tenant (um usuário pertence a exatamente um tenant), então filtrar por `userId` já impede vazamento entre tenants nas consultas existentes. Adicionar filtro por `tenantId` às leituras só passa a ter efeito prático quando existir um recurso que precise ser visto por múltiplos usuários de um mesmo tenant (ex.: painel de equipe/organização) — que não existe ainda. Implementar esse filtro agora seria código morto sem cenário de teste real. Registrado como Fase 3, condicionada a essa feature existir.
+- Suíte completa: **65 testes passando, 1 skip pré-existente**; `tsc --noEmit` limpo.
 
-## 10. Backlog atualizado (sem prazo, conforme Seção 33)
+**Fase 3 (backlog, não iniciada):** quando existir um recurso multiusuário por tenant (ex.: equipe/organização vendo dados uns dos outros), aí sim adicionar filtro `WHERE tenant_id = ?` nas leituras relevantes e índices compostos (`tenant_id` + coluna já indexada).
+
+## 11. Backlog atualizado (sem prazo, conforme Seção 33)
 
 | Item | Prioridade | Depende de |
 | --- | --- | --- |
 | Confirmar contrato oficial do CRM (schema, auth, endpoint) e então ativar o conector CRM em produção | Alta | Time do CRM fornecer contrato equivalente ao `CONTRATO_ENTRADA_ALRT_AXE.md` |
-| Adicionar `tenant_id` ao schema (`alert_types`, `dispatched_alerts`, `general_settings`) preservando `userId` como está, para permitir multi-tenant sem quebrar o modelo atual | ~~Média~~ **Fase 1 concluída no Ciclo 4 (coluna + migração)** | **Fase 2:** isolamento lógico real nas queries (`db.ts`, `routers.ts`) — ainda não iniciado |
+| Adicionar `tenant_id` ao schema (`alert_types`, `dispatched_alerts`, `general_settings`) preservando `userId` como está, para permitir multi-tenant sem quebrar o modelo atual | ~~Média~~ **Fase 1 e 2 concluídas (Ciclos 4 e 5)** | **Fase 3:** filtro de leitura por tenant — só quando existir feature multiusuário por tenant |
 | Estender o Framework de Conectores para o lado servidor: hoje o registro (`shared/connectors`) descreve o contrato, mas `alertEngine.ts`/`dispatchConfiguredAlert` ainda não consultam o `ConnectorDescriptor` para validar auth/versão antes de enviar | ~~Média-Alta~~ **Concluído no Ciclo 3** | — |
 | Avaliar modelo de publicação por contrato/barramento (em vez de POST direto por categoria) para múltiplos consumidores simultâneos | Média | Definição de qual barramento (fila, webhook registry, etc.) |
 | Observabilidade: logs estruturados com correlation ID ponta a ponta, métricas de entrega por destino | Média | Nenhuma |
@@ -95,4 +103,5 @@ Implementado o modelo preferencial indicado pela Seção 10 do Master (**Shared 
 - Nenhum endpoint real de CRM foi contatado ou validado — o conector é uma proposta de schema aguardando confirmação.
 - O lado servidor (`alertEngine.ts`) ainda não consulta o registro de conectores; a extração cobriu o contrato e a camada de UI/testes, não o dispatcher em si (registrado em backlog). **[Concluído no Ciclo 3 — ver Seção 7]**
 - A migração `0010_add_tenant_id.sql` não foi aplicada a nenhum banco real (sem `DATABASE_URL` de ambiente configurada nesta sessão). A coluna existe no schema e na migração gerada, mas seu efeito em um banco vivo não foi observado nem testado nesta sessão.
-- O isolamento lógico por tenant (filtrar queries por `tenantId`) não foi implementado — apenas a coluna existe (Ciclo 4, Fase 1). Ver Fase 2 no backlog.
+- O isolamento lógico por tenant (filtrar queries por `tenantId`) não foi implementado — apenas a coluna existe (Ciclo 4, Fase 1). Ver Fase 2 no backlog. **[Fase 2 — propagação nas escritas — concluída no Ciclo 5; filtro de leitura permanece Fase 3, condicionado a feature multiusuário]**
+- A resolução de `getUserTenantId` a partir da tabela `users` em um banco real não foi testada nesta sessão — só o fallback sem banco foi verificado.

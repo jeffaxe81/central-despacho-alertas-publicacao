@@ -13,6 +13,7 @@ import {
   workflowProcessLogs,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { DEFAULT_TENANT_ID } from "../shared/tenant";
 import {
   DEFAULT_EVENT_SETTINGS,
   DEFAULT_PAYLOAD_TEMPLATE,
@@ -142,14 +143,30 @@ export async function recordPasswordLogin(userId: number) {
   await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, userId));
 }
 
+/**
+ * Resolve o tenant do usuário autenticado (Seção 10, Fase 2). Usado para
+ * carimbar `tenant_id` nas escritas com o valor real do usuário, em vez de
+ * depender apenas do default da coluna no banco. Leituras continuam
+ * filtradas por `userId` — que já é exclusivo por tenant — então nenhuma
+ * query de leitura precisou mudar nesta fase (ver relatorio-conformidade-master.md).
+ */
+export async function getUserTenantId(userId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) return DEFAULT_TENANT_ID;
+  const records = await db.select({ tenantId: users.tenantId }).from(users).where(eq(users.id, userId)).limit(1);
+  return records[0]?.tenantId ?? DEFAULT_TENANT_ID;
+}
+
 export async function ensureDefaultAlertTypes(userId: number) {
   const db = await getDb();
   if (!db) return [];
 
+  const tenantId = await getUserTenantId(userId);
   for (const category of EVENT_CATEGORIES) {
     const defaults = DEFAULT_EVENT_SETTINGS[category.key];
     const values: NewAlertType = {
       userId,
+      tenantId,
       category: category.key,
       name: category.label,
       defaultDescription: defaults.description,
@@ -186,8 +203,10 @@ export async function getGeneralSettings(userId: number) {
   const records = await db.select().from(generalSettings).where(eq(generalSettings.userId, userId)).limit(1);
   if (records[0]) return records[0];
 
+  const tenantId = await getUserTenantId(userId);
   await db.insert(generalSettings).values({
     userId,
+    tenantId,
     defaultLatitude: DEFAULT_SIMULATION_COORDINATES.latitude,
     defaultLongitude: DEFAULT_SIMULATION_COORDINATES.longitude,
   }).onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
@@ -200,7 +219,8 @@ export async function getGeneralSettings(userId: number) {
 export async function updateGeneralSettings(userId: number, input: { defaultLatitude: number; defaultLongitude: number }) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
-  await db.insert(generalSettings).values({ userId, ...input }).onDuplicateKeyUpdate({
+  const tenantId = await getUserTenantId(userId);
+  await db.insert(generalSettings).values({ userId, tenantId, ...input }).onDuplicateKeyUpdate({
     set: { ...input, updatedAt: new Date() },
   });
   return getGeneralSettings(userId);
@@ -281,7 +301,8 @@ export async function createWorkflowOccurrence(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
-  const result = await db.insert(receivedWorkflowOccurrences).values(input);
+  const tenantId = await getUserTenantId(input.userId);
+  const result = await db.insert(receivedWorkflowOccurrences).values({ ...input, tenantId });
   return Number(result[0].insertId);
 }
 
@@ -296,7 +317,8 @@ export async function createWorkflowProcessLog(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
-  const result = await db.insert(workflowProcessLogs).values(input);
+  const tenantId = input.userId ? await getUserTenantId(input.userId) : DEFAULT_TENANT_ID;
+  const result = await db.insert(workflowProcessLogs).values({ ...input, tenantId });
   return Number(result[0].insertId);
 }
 
@@ -349,7 +371,8 @@ export async function createDispatchedAlert(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
-  const result = await db.insert(dispatchedAlerts).values(input);
+  const tenantId = await getUserTenantId(input.userId);
+  const result = await db.insert(dispatchedAlerts).values({ ...input, tenantId });
   return Number(result[0].insertId);
 }
 
@@ -378,7 +401,8 @@ export async function recordMockReceipt(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
-  await db.insert(mockReceipts).values(input);
+  const tenantId = await getUserTenantId(input.userId);
+  await db.insert(mockReceipts).values({ ...input, tenantId });
 }
 
 export async function listDispatchedAlerts(userId: number, limit = 60) {
