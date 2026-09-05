@@ -80,7 +80,7 @@ function timeLabel(value: Date | string) {
  */
 export default function Home() {
   const [location, setLocation] = useLocation();
-  const view = location === "/workflow" ? "workflow" : location === "/historico" ? "historico" : location === "/configuracoes" ? "configuracoes" : location === "/eventos" ? "eventos" : "painel";
+  const view = location === "/workflow" ? "workflow" : location === "/historico" ? "historico" : location === "/configuracoes" ? "configuracoes" : location === "/assinaturas" ? "assinaturas" : location === "/eventos" ? "eventos" : "painel";
   const showAlrtAxeProfilePreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("profilePreview") === "alrt-axe";
   const utils = trpc.useUtils();
   const [selected, setSelected] = useState<SafeAlertType | null>(null);
@@ -139,6 +139,20 @@ export default function Home() {
       void utils.alerts.eventTypes.invalidate();
     },
     onError: error => toast.error("Não foi possível configurar a automação", { description: error.message }),
+  });
+
+  const subscriptionsQuery = trpc.eventSubscriptions.list.useQuery(undefined, { enabled: view === "assinaturas" });
+  const [justCreatedSubscriptionKey, setJustCreatedSubscriptionKey] = useState<string | null>(null);
+  const createSubscriptionMutation = trpc.eventSubscriptions.create.useMutation({
+    onSuccess: result => {
+      setJustCreatedSubscriptionKey(result.subscriberApiKey);
+      void utils.eventSubscriptions.list.invalidate();
+      toast.success("Assinatura criada", { description: "Copie a API key agora — ela não será exibida novamente." });
+    },
+    onError: error => toast.error("Não foi possível criar a assinatura", { description: error.message }),
+  });
+  const toggleSubscriptionMutation = trpc.eventSubscriptions.setActive.useMutation({
+    onSuccess: () => void utils.eventSubscriptions.list.invalidate(),
   });
 
   useEffect(() => {
@@ -227,6 +241,7 @@ export default function Home() {
           ["historico", "/historico", "Histórico"],
           ["workflow", "/workflow", "Workflow"],
           ["configuracoes", "/configuracoes", "Integrações"],
+          ["assinaturas", "/assinaturas", "Assinaturas"],
         ].map(([key, path, label]) => (
           <Button key={key} variant={view === key ? "default" : "ghost"} onClick={() => setLocation(path)} className={view === key ? "bg-cyan-500 text-slate-950 hover:bg-cyan-400" : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"}>{label}</Button>
         ))}
@@ -241,6 +256,7 @@ export default function Home() {
           {view === "historico" && <HistoryView history={history} onCopy={copyNarrative} onRefresh={() => { void historyQuery.refetch(); void metricsQuery.refetch(); }} />}
           {view === "workflow" && <WorkflowView monitor={workflowQuery.data ?? { occurrences: [], logs: [] }} onRefresh={() => void workflowQuery.refetch()} />}
           {view === "configuracoes" && <div className="space-y-6"><GeneralSettingsView coordinates={generalSettingsQuery.data ? { latitude: generalSettingsQuery.data.defaultLatitude, longitude: generalSettingsQuery.data.defaultLongitude } : simulatorCoordinates} onSave={(coordinates: Coordinates) => updateGeneralSettingsMutation.mutate({ defaultLatitude: coordinates.latitude, defaultLongitude: coordinates.longitude })} onSearchAddress={async address => { const result = await geocodeAddressMutation.mutateAsync({ address }); return { latitude: result.latitude, longitude: result.longitude, formattedAddress: result.formattedAddress }; }} isSaving={updateGeneralSettingsMutation.isPending} isSearching={geocodeAddressMutation.isPending} /><ResetGeneratedDataPanel onReset={() => resetGeneratedDataMutation.mutate({ confirmation: "LIMPAR DADOS GERADOS" })} isResetting={resetGeneratedDataMutation.isPending} /><IntegrationView alertTypes={alertTypes} onConfig={setSelected} onToggleAutomation={toggleAutomation} isSaving={automationMutation.isPending} /><AxeReadinessPanel alertTypes={alertTypes} /></div>}
+          {view === "assinaturas" && <SubscriptionsView subscriptions={subscriptionsQuery.data ?? []} onCreate={input => createSubscriptionMutation.mutate(input)} isCreating={createSubscriptionMutation.isPending} justCreatedKey={justCreatedSubscriptionKey} onToggle={(id, isActive) => toggleSubscriptionMutation.mutate({ id, isActive })} isToggling={toggleSubscriptionMutation.isPending} />}
         </main>
       )}
 
@@ -329,6 +345,71 @@ function AxeReadinessPanel({ alertTypes }: { alertTypes: SafeAlertType[] }) {
   const awaitingEndpoint = alertTypes.filter(item => item.isTestMode || item.endpointUrl.startsWith("mock://")).length;
   return <Card className="border-cyan-300/15 bg-cyan-300/[0.04] shadow-none"><CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle className="text-base text-cyan-100">Prontidão para AXE Dispatch</CardTitle><CardDescription className="mt-1 text-slate-400">O perfil é validado antes de salvar; nenhuma chamada externa será feita enquanto o modo teste estiver ativo.</CardDescription></div><Badge variant="outline" className={awaitingEndpoint ? "border-amber-300/30 bg-amber-300/10 text-amber-200" : "border-emerald-300/30 bg-emerald-300/10 text-emerald-200"}>{awaitingEndpoint ? "Aguardando endpoint" : "Destino externo configurado"}</Badge></div></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-slate-700 bg-slate-950/30 p-3"><p className="text-xs uppercase tracking-wider text-slate-500">Perfil AXE</p><p className="mt-1 text-2xl font-semibold text-cyan-100">{withAxeProfile}/{alertTypes.length}</p><p className="mt-1 text-xs text-slate-500">Categorias com o modelo de ocorrência aplicado.</p></div><div className="rounded-lg border border-slate-700 bg-slate-950/30 p-3"><p className="text-xs uppercase tracking-wider text-slate-500">Liberação externa</p><p className="mt-1 text-2xl font-semibold text-amber-200">{awaitingEndpoint}</p><p className="mt-1 text-xs text-slate-500">Categorias ainda protegidas pelo mock interno.</p></div></CardContent></Card>;
 }
+
+export type SubscriptionListItem = {
+  id: number;
+  label: string;
+  category: string | null;
+  deliveryMode: string;
+  endpointUrl: string | null;
+  isActive: boolean;
+};
+
+export function SubscriptionsView({
+  subscriptions,
+  onCreate,
+  isCreating,
+  justCreatedKey,
+  onToggle,
+  isToggling,
+}: {
+  subscriptions: SubscriptionListItem[];
+  onCreate: (input: { label: string; category: EventCategory | null; deliveryMode: "webhook" | "sse"; endpointUrl?: string; headersJson: string; outboundApiKeyHeader: string }) => void;
+  isCreating: boolean;
+  justCreatedKey: string | null;
+  onToggle: (id: number, isActive: boolean) => void;
+  isToggling: boolean;
+}) {
+  const [label, setLabel] = useState("");
+  const [category, setCategory] = useState<string>("todas");
+  const [deliveryMode, setDeliveryMode] = useState<"webhook" | "sse">("webhook");
+  const [endpointUrl, setEndpointUrl] = useState("");
+
+  const submit = () => {
+    if (!label.trim()) return toast.error("Informe um nome para a assinatura.");
+    if (deliveryMode === "webhook" && !endpointUrl.trim()) return toast.error("Informe a URL de destino para assinaturas do tipo webhook.");
+    onCreate({
+      label: label.trim(),
+      category: category === "todas" ? null : (category as EventCategory),
+      deliveryMode,
+      endpointUrl: deliveryMode === "webhook" ? endpointUrl.trim() : undefined,
+      headersJson: "{}",
+      outboundApiKeyHeader: "X-ALRT-API-Key",
+    });
+    setLabel("");
+    setEndpointUrl("");
+  };
+
+  return <div className="space-y-6">
+    <div><h2 className="text-xl font-semibold text-white">Assinaturas do barramento de eventos</h2><p className="mt-1 text-sm text-slate-400">Consumidores externos recebem cada evento publicado pelo Motor via webhook ou SSE, autenticados por API key (ADR-0001).</p></div>
+
+    {justCreatedKey && <Card className="border-emerald-300/25 bg-emerald-300/[0.06] shadow-none"><CardContent className="flex flex-col gap-2 p-5"><p className="text-sm font-medium text-emerald-100">API key da nova assinatura (copie agora — não será exibida novamente)</p><div className="flex items-center gap-2"><code className="flex-1 truncate rounded bg-slate-950/60 px-3 py-2 font-mono text-xs text-emerald-200">{justCreatedKey}</code><Button size="sm" variant="outline" className="border-emerald-400/30 bg-transparent text-emerald-200 hover:bg-emerald-400/10" onClick={async () => { await navigator.clipboard.writeText(justCreatedKey); toast.success("Copiada para a área de transferência."); }}>Copiar</Button></div></CardContent></Card>}
+
+    <Card className="border-slate-800 bg-[#0c1b2b] shadow-none"><CardHeader><CardTitle className="text-base text-slate-100">Nova assinatura</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2"><Label htmlFor="subscription-label" className="text-slate-300">Nome</Label><Input id="subscription-label" value={label} onChange={event => setLabel(event.target.value)} placeholder="Ex.: Despacho — todas as categorias" className="border-slate-700 bg-slate-950/40 text-slate-100" /></div>
+      <div className="space-y-2"><Label className="text-slate-300">Categoria</Label><Select value={category} onValueChange={setCategory}><SelectTrigger className="border-slate-700 bg-slate-950/40 text-slate-100"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todas">Todas as categorias</SelectItem>{EVENT_CATEGORIES.map(item => <SelectItem key={item.key} value={item.key}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+      <div className="space-y-2"><Label className="text-slate-300">Modo de entrega</Label><Select value={deliveryMode} onValueChange={value => setDeliveryMode(value as "webhook" | "sse")}><SelectTrigger className="border-slate-700 bg-slate-950/40 text-slate-100"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="webhook">Webhook (POST no seu endpoint)</SelectItem><SelectItem value="sse">SSE (stream ao vivo)</SelectItem></SelectContent></Select></div>
+      {deliveryMode === "webhook" && <div className="space-y-2"><Label htmlFor="subscription-endpoint" className="text-slate-300">URL de destino</Label><Input id="subscription-endpoint" value={endpointUrl} onChange={event => setEndpointUrl(event.target.value)} placeholder="https://seu-sistema.example/webhook" className="border-slate-700 bg-slate-950/40 text-slate-100" /></div>}
+      {deliveryMode === "sse" && <div className="rounded-lg border border-slate-700 bg-slate-950/30 p-3 text-xs text-slate-400 sm:col-span-1">Conecte em <code>GET /api/events/stream</code> com <code>Authorization: Bearer &lt;api-key&gt;</code> após criar a assinatura.</div>}
+    </CardContent><DialogFooter className="px-6 pb-6"><Button onClick={submit} disabled={isCreating} className="bg-cyan-500 text-slate-950 hover:bg-cyan-400">{isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Criar assinatura</Button></DialogFooter></Card>
+
+    <div className="grid gap-3">{subscriptions.map(subscription => <Card key={subscription.id} className="border-slate-800 bg-[#0c1b2b] shadow-none"><CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium text-slate-100">{subscription.label}</p><Badge variant="outline" className="border-slate-700 text-slate-400">{subscription.deliveryMode === "sse" ? "SSE" : "Webhook"}</Badge><Badge variant="outline" className="border-slate-700 text-slate-400">{subscription.category ?? "todas as categorias"}</Badge></div>{subscription.endpointUrl && <p className="mt-1 truncate text-sm text-slate-500">{subscription.endpointUrl}</p>}</div><div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2"><Switch checked={subscription.isActive} onCheckedChange={value => onToggle(subscription.id, value)} disabled={isToggling} /><span className="text-sm text-slate-300">{subscription.isActive ? "Ativa" : "Pausada"}</span></div></CardContent></Card>)}
+      {subscriptions.length === 0 && <p className="text-sm text-slate-500">Nenhuma assinatura criada ainda.</p>}
+    </div>
+  </div>;
+}
+
+
 
 export function EventConfigDialog({ draft, setDraft, onSave, isSaving, autoInterval, setAutoInterval, onAutomation, automationSaving }: { draft: ConfigDraft; setDraft: (value: ConfigDraft) => void; onSave: () => void; isSaving: boolean; autoInterval: string; setAutoInterval: (value: string) => void; onAutomation: () => void; automationSaving: boolean }) {
   const update = <K extends keyof ConfigDraft>(key: K, value: ConfigDraft[K]) => setDraft({ ...draft, [key]: value });

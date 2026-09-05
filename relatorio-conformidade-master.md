@@ -113,7 +113,15 @@ Decisão do usuário: Opção 2 (fila gerenciada) como alvo, Opções 1 e 3 como
 - Testes novos: `publish.test.ts` (4), `sseBroadcaster.test.ts` (2). Suíte completa: **73 testes passando, 1 skip pré-existente**; `tsc --noEmit` limpo; `pnpm run build` validado.
 - **Limitações declaradas:** broadcaster SSE em memória (não escala para múltiplas instâncias sem backplane compartilhado); Opção 2 real (broker gerenciado) não conectada — sem infraestrutura/acesso de rede a um serviço de fila neste ambiente; migração não aplicada a banco real.
 
-## 17. Backlog atualizado (sem prazo, conforme Seção 33)
+## 18. Ciclo 9 — UI de gerenciamento de assinaturas (concluído)
+
+- Nova aba "Assinaturas" (`/assinaturas`) em `Home.tsx`: formulário de criação (nome, categoria, modo webhook/SSE, endpoint) e lista com toggle ativo/pausado.
+- `SubscriptionsView` mantido **prop-driven** (sem chamar tRPC diretamente), seguindo o mesmo padrão dos demais componentes de tela do projeto — os hooks (`list`, `create`, `setActive`) ficam no componente `Home`, o que manteve o componente testável em isolamento como os demais.
+- A `subscriberApiKey` é exibida uma única vez, logo após a criação, com botão de copiar — mesmo padrão de segredo já usado no restante da plataforma.
+- Testes novos: `Home.subscriptions.test.tsx` (3 testes: criação webhook, validação de endpoint obrigatório, exibição de API key + toggle).
+- Suíte completa: **76 testes passando, 1 skip pré-existente**; `tsc --noEmit` limpo; `pnpm run build` validado.
+
+## 19. Backlog atualizado (sem prazo, conforme Seção 33)
 
 | Item | Prioridade | Depende de |
 | --- | --- | --- |
@@ -122,7 +130,7 @@ Decisão do usuário: Opção 2 (fila gerenciada) como alvo, Opções 1 e 3 como
 | Estender o Framework de Conectores para o lado servidor: hoje o registro (`shared/connectors`) descreve o contrato, mas `alertEngine.ts`/`dispatchConfiguredAlert` ainda não consultam o `ConnectorDescriptor` para validar auth/versão antes de enviar | ~~Média-Alta~~ **Concluído no Ciclo 3** | — |
 | Avaliar modelo de publicação por contrato/barramento (em vez de POST direto por categoria) para múltiplos consumidores simultâneos | ~~Média~~ **Opções 1 e 3 implementadas no Ciclo 8 (webhook + outbox)** | **Opção 2 real** (broker gerenciado): sem infraestrutura provisionada nesta sessão |
 | Backplane compartilhado para SSE em múltiplas instâncias (Redis pub/sub ou similar) | Média | Decisão de infraestrutura + Opção 2 |
-| UI para gerenciar assinaturas do barramento (hoje só via tRPC, sem tela) | Baixa-Média | Nenhuma |
+| UI para gerenciar assinaturas do barramento (hoje só via tRPC, sem tela) | ~~Baixa-Média~~ **Concluído no Ciclo 9** | — |
 | Observabilidade: logs estruturados com correlation ID ponta a ponta, métricas de entrega por destino | ~~Média~~ **Logs estruturados concluídos no Ciclo 7** | Métricas agregadas/dashboards ficam para quando houver decisão de qual coletor/APM adotar |
 | Cofre de segredos dedicado para API keys/tokens armazenados por categoria | Baixa-Média | Infraestrutura de secrets management |
 | Versionamento semântico do módulo com tags Git | Baixa | Nenhuma |

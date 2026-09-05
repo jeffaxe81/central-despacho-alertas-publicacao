@@ -17,6 +17,7 @@ function Router() {
       <Route path={"/historico"}>{() => <DashboardLayout><Home /></DashboardLayout>}</Route>
       <Route path={"/workflow"}>{() => <DashboardLayout><Home /></DashboardLayout>}</Route>
       <Route path={"/configuracoes"}>{() => <DashboardLayout><Home /></DashboardLayout>}</Route>
+      <Route path={"/assinaturas"}>{() => <DashboardLayout><Home /></DashboardLayout>}</Route>
       <Route path={"/exemplos-integracao"} component={IntegrationExample} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
