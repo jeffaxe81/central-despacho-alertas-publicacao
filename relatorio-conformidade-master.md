@@ -121,7 +121,15 @@ Decisão do usuário: Opção 2 (fila gerenciada) como alvo, Opções 1 e 3 como
 - Testes novos: `Home.subscriptions.test.tsx` (3 testes: criação webhook, validação de endpoint obrigatório, exibição de API key + toggle).
 - Suíte completa: **76 testes passando, 1 skip pré-existente**; `tsc --noEmit` limpo; `pnpm run build` validado.
 
-## 19. Backlog atualizado (sem prazo, conforme Seção 33)
+## 20. Ciclo 10 — Remoção de código morto e Docker local (concluído)
+
+- Removido `client/src/components/ManusDialog.tsx`: componente de diálogo de login "com Manus", morto (não importado em lugar nenhum), sobra da migração para autenticação local por e-mail/senha. Confirmado com `tsc --noEmit`, suíte completa e build antes e depois da remoção — nenhuma diferença.
+- **Não removido** (avaliado e explicado ao usuário): `server/_core/*` (SDK de sessão, agendador de automação, proxy de mapas), `vite-plugin-manus-runtime`, e o endpoint `manus.space` do AXE Dispatch — são infraestrutura ativa da plataforma de hospedagem atual e do parceiro AXE, não "branding" removível sem substituir autenticação, agendamento e geocoding por conta própria. Decisão de quando/se migrar isso fica com o usuário.
+- `Dockerfile` (multi-stage, build + runtime) e `docker-compose.yml` (app + MySQL 8.4) criados para rodar o projeto localmente com banco real.
+- `docs/docker.md`: guia de uso, incluindo como aplicar as migrações pendentes contra o MySQL do compose.
+- **Limitação declarada:** Docker não está disponível neste ambiente de trabalho — a sintaxe do `docker-compose.yml` foi validada, mas o build/execução reais **não foram testados** nesta sessão. Fica pendente de validação pelo usuário no próprio ambiente.
+
+## 21. Backlog atualizado (sem prazo, conforme Seção 33)
 
 | Item | Prioridade | Depende de |
 | --- | --- | --- |
