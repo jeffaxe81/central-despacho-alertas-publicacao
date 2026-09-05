@@ -3,6 +3,7 @@ import type { AlertType } from "../drizzle/schema";
 import { createHash, createHmac } from "node:crypto";
 import * as db from "./db";
 import { deliverToInternalMock } from "./mockDispatch";
+import { logEvent } from "./observability/logger";
 import { CONNECTORS } from "../shared/connectors/registry";
 import type { ConnectorDescriptor } from "../shared/connectors/types";
 import { DEFAULT_SIMULATION_COORDINATES, type EventCategory, type Severity } from "../shared/alertSimulation";
@@ -403,6 +404,14 @@ export async function dispatchConfiguredAlert(
 
   try {
     if (matchedConnector?.status === "proposta" && !alertType.isTestMode) {
+      logEvent("warn", "dispatch.blocked_proposta", {
+        correlationId: occurrence.correlationId,
+        eventId: occurrence.eventId,
+        userId: alertType.userId,
+        alertTypeId: alertType.id,
+        connectorId: matchedConnector.id,
+        category: alertType.category,
+      });
       throw new Error(
         `O conector "${matchedConnector.label}" ainda é uma proposta sem contrato oficial confirmado; envio fora do modo teste está bloqueado (ver relatorio-conformidade-master.md).`
       );
@@ -410,6 +419,15 @@ export async function dispatchConfiguredAlert(
     if (!alertType.isTestMode && isAlrtAxeEnvelope && !alertType.apiKey?.trim()) {
       throw new Error("Configure a API key X-ALRT-API-Key antes do envio ALRT → AXE.");
     }
+    logEvent("info", "dispatch.attempt", {
+      correlationId: occurrence.correlationId,
+      eventId: occurrence.eventId,
+      userId: alertType.userId,
+      alertTypeId: alertType.id,
+      connectorId: matchedConnector?.id,
+      category: alertType.category,
+      isTestMode: alertType.isTestMode,
+    });
     const result = alertType.isTestMode
       ? await deliverToInternalMock({ userId: alertType.userId, dispatchedAlertId: alertId, payloadJson })
       : await postWithRetry({
@@ -434,6 +452,16 @@ export async function dispatchConfiguredAlert(
       failureReason: result.failureReason ?? null,
       attemptCount: result.attempts,
     });
+    logEvent(result.ok ? "info" : "warn", result.ok ? "dispatch.success" : "dispatch.failure", {
+      correlationId: occurrence.correlationId,
+      eventId: occurrence.eventId,
+      userId: alertType.userId,
+      alertTypeId: alertType.id,
+      connectorId: matchedConnector?.id,
+      category: alertType.category,
+      attempt: result.attempts,
+      httpStatus: result.status,
+    });
     return { alertId, occurrence, payload, ...result };
   } catch (error) {
     const failureReason = error instanceof Error ? error.message : "Erro desconhecido ao preparar despacho.";
@@ -443,6 +471,15 @@ export async function dispatchConfiguredAlert(
       responseSummary: null,
       failureReason,
       attemptCount: 0,
+    });
+    logEvent("error", "dispatch.exception", {
+      correlationId: occurrence.correlationId,
+      eventId: occurrence.eventId,
+      userId: alertType.userId,
+      alertTypeId: alertType.id,
+      connectorId: matchedConnector?.id,
+      category: alertType.category,
+      reason: failureReason,
     });
     return { alertId, occurrence, payload, ok: false, status: null, summary: "", attempts: 0, failureReason };
   }

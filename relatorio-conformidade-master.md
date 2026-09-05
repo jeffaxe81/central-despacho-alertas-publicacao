@@ -92,7 +92,16 @@ Fechado o item de risco levantado no `RELEASE-1.0.0.md` ("sem CI, cada push depe
 - Validado localmente antes de criar o workflow: `pnpm run build` funciona sem `DATABASE_URL` (bundling estático; nenhuma conexão real ao banco ocorre no build).
 - **Não foi possível observar uma execução real do workflow no GitHub Actions nesta sessão** (isso só acontece depois que o arquivo for publicado e um push/PR disparar o job) — declarado explicitamente, não presumido como "CI verde".
 
-## 13. Backlog atualizado (sem prazo, conforme Seção 33)
+## 14. Ciclo 7 — Observabilidade: logs estruturados ponta a ponta (concluído)
+
+Fecha o item de backlog da Seção 36 (operações críticas rastreáveis ponta a ponta):
+
+- `server/observability/logger.ts`: `logEvent(level, event, fields)` — uma linha JSON por evento (`timestamp`, `level`, `event` + campos livres), pronta para qualquer coletor de logs indexar por campo (correlationId, eventId, tenantId, connectorId etc.). Escopo deliberadamente mínimo: métricas agregadas e dashboards dependem de qual coletor/APM for adotado — decisão de infraestrutura que não cabe a este módulo antecipar (Seção 46).
+- Instrumentado o caminho crítico do Motor de Eventos em `alertEngine.ts` (`dispatchConfiguredAlert`): eventos `dispatch.attempt`, `dispatch.success`, `dispatch.failure`, `dispatch.exception` e `dispatch.blocked_proposta` — todos carregando `correlationId`/`eventId` da ocorrência, `connectorId` do registro e `tenantId`/`userId` do alerta, permitindo rastrear um envio específico ponta a ponta pelos logs.
+- Testes novos: `server/observability/logger.test.ts` (formato JSON, roteamento por nível) e uma asserção adicional no teste de bloqueio de conector "proposta" confirmando que o log estruturado correspondente é emitido.
+- Suíte completa: **67 testes passando, 1 skip pré-existente**; `tsc --noEmit` limpo.
+
+## 15. Backlog atualizado (sem prazo, conforme Seção 33)
 
 | Item | Prioridade | Depende de |
 | --- | --- | --- |
@@ -100,7 +109,7 @@ Fechado o item de risco levantado no `RELEASE-1.0.0.md` ("sem CI, cada push depe
 | Adicionar `tenant_id` ao schema (`alert_types`, `dispatched_alerts`, `general_settings`) preservando `userId` como está, para permitir multi-tenant sem quebrar o modelo atual | ~~Média~~ **Fase 1 e 2 concluídas (Ciclos 4 e 5)** | **Fase 3:** filtro de leitura por tenant — só quando existir feature multiusuário por tenant |
 | Estender o Framework de Conectores para o lado servidor: hoje o registro (`shared/connectors`) descreve o contrato, mas `alertEngine.ts`/`dispatchConfiguredAlert` ainda não consultam o `ConnectorDescriptor` para validar auth/versão antes de enviar | ~~Média-Alta~~ **Concluído no Ciclo 3** | — |
 | Avaliar modelo de publicação por contrato/barramento (em vez de POST direto por categoria) para múltiplos consumidores simultâneos | Média | Definição de qual barramento (fila, webhook registry, etc.) |
-| Observabilidade: logs estruturados com correlation ID ponta a ponta, métricas de entrega por destino | Média | Nenhuma |
+| Observabilidade: logs estruturados com correlation ID ponta a ponta, métricas de entrega por destino | ~~Média~~ **Logs estruturados concluídos no Ciclo 7** | Métricas agregadas/dashboards ficam para quando houver decisão de qual coletor/APM adotar |
 | Cofre de segredos dedicado para API keys/tokens armazenados por categoria | Baixa-Média | Infraestrutura de secrets management |
 | Versionamento semântico do módulo com tags Git | Baixa | Nenhuma |
 

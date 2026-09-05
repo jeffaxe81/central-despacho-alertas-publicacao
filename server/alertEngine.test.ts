@@ -311,6 +311,7 @@ describe("despacho e histórico", () => {
     mockDb.updateDispatchedAlert.mockResolvedValue(undefined);
     const fetchMock = vi.fn();
     global.fetch = fetchMock as typeof fetch;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await dispatchConfiguredAlert({
       ...mockAlertType,
@@ -321,6 +322,8 @@ describe("despacho e histórico", () => {
     expect(result).toMatchObject({ ok: false, attempts: 0, failureReason: expect.stringMatching(/proposta sem contrato oficial/i) });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mockDb.updateDispatchedAlert).toHaveBeenCalledWith(93, expect.objectContaining({ status: "falha", attemptCount: 0 }));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"event":"dispatch.blocked_proposta"'));
+    warnSpy.mockRestore();
   });
 
   it("permite o conector CRM em modo teste (mock interno), sem bloqueio", async () => {
