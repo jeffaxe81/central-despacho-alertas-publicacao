@@ -86,6 +86,42 @@ export const ALRT_AXE_INGRESS_PAYLOAD_TEMPLATE = `{
   }
 }`;
 
+/**
+ * Contrato PROPOSTO para o CRM (Seção 7 do Prompt Master: CRM pode receber contexto
+ * de ocorrências quando houver caso de uso legítimo, sem acoplamento obrigatório).
+ *
+ * Este envelope segue o MESMO padrão versionado já homologado com o AXE Dispatch
+ * (schemaVersion, eventId, eventType, correlationId, idempotencyKey), mas o CRM
+ * ainda não forneceu um contrato oficial equivalente ao CONTRATO_ENTRADA_ALRT_AXE.md.
+ * Por isso o perfil correspondente mantém modo teste ativo e endpoint vazio até que
+ * o time do CRM confirme schema, autenticação e endpoint reais — ver backlog.
+ */
+export const ALRT_CRM_INGRESS_PAYLOAD_TEMPLATE = `{
+  "schemaVersion": "1.0",
+  "eventId": "evt_{{alertId}}",
+  "eventType": "occurrence.registered",
+  "occurredAt": "{{timestamp}}",
+  "source": {
+    "system": "despacho-alrt",
+    "environment": "homologacao"
+  },
+  "correlationId": "{{correlationId}}",
+  "idempotencyKey": "alrt:occurrence:{{alertId}}:created:v1",
+  "data": {
+    "occurrence": {
+      "externalId": "{{alertId}}",
+      "category": "{{eventName}}",
+      "priority": "{{severity}}",
+      "description": "{{narrative}}",
+      "address": "{{address}}",
+      "latitude": {{latitude}},
+      "longitude": {{longitude}},
+      "reportedAt": "{{timestamp}}"
+    },
+    "contact": null
+  }
+}`;
+
 export const DEFAULT_EVENT_SETTINGS: Record<
   EventCategory,
   { description: string; severity: Severity }
