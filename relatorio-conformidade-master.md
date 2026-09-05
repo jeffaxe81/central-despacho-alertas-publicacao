@@ -62,12 +62,26 @@ Fechada a lacuna registrada no backlog do Ciclo 2 ("servidor ainda não consulta
 
 Com isso, o Framework de Conectores cobre agora as três camadas: contrato (`shared/connectors`), UI (`connectorProfile.ts`) e dispatcher (`alertEngine.ts`).
 
-## 8. Backlog atualizado (sem prazo, conforme Seção 33)
+## 9. Ciclo 4 — Multi-tenant: coluna `tenant_id` (Fase 1 de 2, concluída e testada)
+
+Implementado o modelo preferencial indicado pela Seção 10 do Master (**Shared Database + tenant_id**), em duas fases deliberadamente separadas para não misturar mudança de schema com mudança de regra de negócio no mesmo ciclo:
+
+**Fase 1 (este ciclo):**
+- `shared/tenant.ts`: constante `DEFAULT_TENANT_ID = "default"`.
+- Coluna `tenant_id` (`varchar(64) NOT NULL DEFAULT 'default'`) adicionada a **todas as 7 tabelas** (`users`, `alert_types`, `general_settings`, `dispatched_alerts`, `mock_receipts`, `received_workflow_occurrences`, `workflow_process_logs`).
+- Migração gerada via `drizzle-kit generate`: `drizzle/0010_add_tenant_id.sql` — puramente aditiva (`ADD COLUMN ... DEFAULT 'default' NOT NULL`), seguro para aplicar sobre dados existentes sem backfill manual.
+- **Nenhuma query foi alterada** para filtrar por tenant ainda — a coluna existe e é preenchida automaticamente pelo banco, mas nenhum código de aplicação lê ou escreve nela intencionalmente por enquanto.
+- Suíte completa reexecutada: **64 testes passando** (nenhum teste novo era necessário nesta fase, pois não há comportamento de aplicação para verificar sem um banco real — o valor padrão é responsabilidade do MySQL); `tsc --noEmit` limpo.
+- **Migração não aplicada** a nenhum banco real: não há `DATABASE_URL` de produção/homologação configurada nesta sessão, nem autorização para rodar `drizzle-kit migrate` contra um ambiente real (Seção 46 — não declarar migração aplicada sem evidência).
+
+**Fase 2 (backlog, não iniciada neste ciclo):** isolamento lógico de fato — `db.ts` passar a receber/propagar `tenantId` em cada leitura e escrita, `routers.ts` extrair o tenant do contexto de autenticação, e índices compostos (`tenant_id` + colunas já indexadas) para performance. Isso é mudança de regra de negócio, não de schema, e por isso foi deixada para um próximo ciclo dedicado.
+
+## 10. Backlog atualizado (sem prazo, conforme Seção 33)
 
 | Item | Prioridade | Depende de |
 | --- | --- | --- |
 | Confirmar contrato oficial do CRM (schema, auth, endpoint) e então ativar o conector CRM em produção | Alta | Time do CRM fornecer contrato equivalente ao `CONTRATO_ENTRADA_ALRT_AXE.md` |
-| Adicionar `tenant_id` ao schema (`alert_types`, `dispatched_alerts`, `general_settings`) preservando `userId` como está, para permitir multi-tenant sem quebrar o modelo atual | Média | Decisão de produto sobre shared-DB + tenant_id (Seção 10) |
+| Adicionar `tenant_id` ao schema (`alert_types`, `dispatched_alerts`, `general_settings`) preservando `userId` como está, para permitir multi-tenant sem quebrar o modelo atual | ~~Média~~ **Fase 1 concluída no Ciclo 4 (coluna + migração)** | **Fase 2:** isolamento lógico real nas queries (`db.ts`, `routers.ts`) — ainda não iniciado |
 | Estender o Framework de Conectores para o lado servidor: hoje o registro (`shared/connectors`) descreve o contrato, mas `alertEngine.ts`/`dispatchConfiguredAlert` ainda não consultam o `ConnectorDescriptor` para validar auth/versão antes de enviar | ~~Média-Alta~~ **Concluído no Ciclo 3** | — |
 | Avaliar modelo de publicação por contrato/barramento (em vez de POST direto por categoria) para múltiplos consumidores simultâneos | Média | Definição de qual barramento (fila, webhook registry, etc.) |
 | Observabilidade: logs estruturados com correlation ID ponta a ponta, métricas de entrega por destino | Média | Nenhuma |
@@ -80,3 +94,5 @@ Com isso, o Framework de Conectores cobre agora as três camadas: contrato (`sha
 - Nenhuma migração de banco foi criada (o gap de `tenant_id` está registrado em backlog, não implementado).
 - Nenhum endpoint real de CRM foi contatado ou validado — o conector é uma proposta de schema aguardando confirmação.
 - O lado servidor (`alertEngine.ts`) ainda não consulta o registro de conectores; a extração cobriu o contrato e a camada de UI/testes, não o dispatcher em si (registrado em backlog). **[Concluído no Ciclo 3 — ver Seção 7]**
+- A migração `0010_add_tenant_id.sql` não foi aplicada a nenhum banco real (sem `DATABASE_URL` de ambiente configurada nesta sessão). A coluna existe no schema e na migração gerada, mas seu efeito em um banco vivo não foi observado nem testado nesta sessão.
+- O isolamento lógico por tenant (filtrar queries por `tenantId`) não foi implementado — apenas a coluna existe (Ciclo 4, Fase 1). Ver Fase 2 no backlog.

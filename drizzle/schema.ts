@@ -15,6 +15,7 @@ import {
   EVENT_CATEGORIES,
   SEVERITY_OPTIONS,
 } from "../shared/alertSimulation";
+import { DEFAULT_TENANT_ID } from "../shared/tenant";
 
 /**
  * Core user table backing auth flow.
@@ -35,6 +36,8 @@ export const users = mysqlTable("users", {
   passwordHash: varchar("passwordHash", { length: 255 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  /** Multi-tenant (Secao 10): shared-DB + tenant_id, "default" ate haver separacao real por empresa. */
+  tenantId: varchar("tenant_id", { length: 64 }).notNull().default(DEFAULT_TENANT_ID),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -61,6 +64,8 @@ export const alertTypes = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     userId: int("user_id").notNull(),
+    /** Multi-tenant (Secao 10): shared-DB + tenant_id, "default" ate haver separacao real por empresa. */
+    tenantId: varchar("tenant_id", { length: 64 }).notNull().default(DEFAULT_TENANT_ID),
     category: mysqlEnum("category", eventCategoryValues).notNull(),
     name: varchar("name", { length: 160 }).notNull(),
     defaultDescription: text("default_description").notNull(),
@@ -92,6 +97,8 @@ export const generalSettings = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     userId: int("user_id").notNull(),
+    /** Multi-tenant (Secao 10): shared-DB + tenant_id, "default" ate haver separacao real por empresa. */
+    tenantId: varchar("tenant_id", { length: 64 }).notNull().default(DEFAULT_TENANT_ID),
     defaultLatitude: double("default_latitude").notNull().default(-15.793889),
     defaultLongitude: double("default_longitude").notNull().default(-47.882778),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -105,6 +112,8 @@ export const dispatchedAlerts = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     userId: int("user_id").notNull(),
+    /** Multi-tenant (Secao 10): shared-DB + tenant_id, "default" ate haver separacao real por empresa. */
+    tenantId: varchar("tenant_id", { length: 64 }).notNull().default(DEFAULT_TENANT_ID),
     alertTypeId: int("alert_type_id").notNull(),
     category: mysqlEnum("category", eventCategoryValues).notNull(),
     eventName: varchar("event_name", { length: 160 }).notNull(),
@@ -139,6 +148,8 @@ export const mockReceipts = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     userId: int("user_id").notNull(),
+    /** Multi-tenant (Secao 10): shared-DB + tenant_id, "default" ate haver separacao real por empresa. */
+    tenantId: varchar("tenant_id", { length: 64 }).notNull().default(DEFAULT_TENANT_ID),
     dispatchedAlertId: int("dispatched_alert_id").notNull(),
     payloadJson: text("payload_json").notNull(),
     receivedAt: timestamp("received_at").defaultNow().notNull(),
@@ -151,6 +162,8 @@ export const receivedWorkflowOccurrences = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     userId: int("user_id").notNull(),
+    /** Multi-tenant (Secao 10): shared-DB + tenant_id, "default" ate haver separacao real por empresa. */
+    tenantId: varchar("tenant_id", { length: 64 }).notNull().default(DEFAULT_TENANT_ID),
     alertTypeId: int("alert_type_id").notNull(),
     externalId: varchar("external_id", { length: 160 }).notNull(),
     code: varchar("code", { length: 180 }).notNull(),
@@ -178,6 +191,8 @@ export const workflowProcessLogs = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     userId: int("user_id"),
+    /** Multi-tenant (Secao 10): shared-DB + tenant_id, "default" ate haver separacao real por empresa. */
+    tenantId: varchar("tenant_id", { length: 64 }).notNull().default(DEFAULT_TENANT_ID),
     alertTypeId: int("alert_type_id"),
     externalId: varchar("external_id", { length: 160 }),
     outcome: varchar("outcome", { length: 24 }).notNull(),
