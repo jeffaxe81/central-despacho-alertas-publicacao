@@ -4,9 +4,12 @@
 FROM node:20-slim AS build
 WORKDIR /app
 
-RUN corepack enable
+# Instala o pnpm diretamente (mais robusto que corepack em redes restritas/
+# Docker Desktop no Windows, onde a verificação de assinatura do corepack
+# pode falhar). Versão fixa alinhada ao "packageManager" do package.json.
+RUN npm install -g pnpm@10.4.1
 
-COPY package.json pnpm-lock.yaml* .npmrc* ./
+COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
@@ -19,8 +22,8 @@ FROM node:20-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN corepack enable
-COPY package.json pnpm-lock.yaml* .npmrc* ./
+RUN npm install -g pnpm@10.4.1
+COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --prod
 
 COPY --from=build /app/dist ./dist
