@@ -75,10 +75,14 @@ Cada evento gerado grava uma linha em uma tabela `event_outbox` (dentro da mesma
 | Desacoplamento (Seção 8) | Parcial | Total | Quase total |
 | Risco operacional | Baixo | Médio-Alto (nova peça) | Baixo-Médio |
 
-## Não-recomendação deliberada
+## Decisão registrada
 
-Não estou indicando uma opção como "a certa" — a escolha depende de fatores que só quem decide a operação da plataforma sabe: quantos consumidores reais estão previstos nos próximos meses, se já existe (ou vai existir) fila em outro módulo do Axesistemas, e se há exigência de auditoria/replay de longo prazo. Decidir isso por vocês seria inventar um requisito de negócio (Seção 46).
+**Aceita:** Opção 2 (fila/broker gerenciado) como alvo, com Opção 1 (webhook registry) e Opção 3 (outbox MySQL) como contingência — implementadas primeiro, por não haver infraestrutura de fila provisionada nesta sessão (sem acesso de rede a Redis/RabbitMQ/SQS neste ambiente). A entrega por assinatura aceita **webhook e SSE**, autenticados por API key.
 
-## Próximos passos (após decisão)
-
-Qualquer opção escolhida é implementável de forma incremental sobre o que já existe (Framework de Conectores permanece igual nas 3); a diferença está só em "como o evento chega até ele".
+**O que foi implementado (Ciclo 8):**
+- `event_outbox` (Opção 3): toda publicação é gravada aqui, com status/contadores de entrega — serve de log durável e será a fonte que um consumidor de fila real (Opção 2) poderá ler no futuro, sem re-arquitetar o Motor.
+- `event_subscriptions`: assinantes registram-se (via `eventSubscriptions.create`, tRPC autenticado) com `deliveryMode` webhook ou sse, filtro por categoria (ou todas), e recebem uma `subscriberApiKey` única (mostrada uma única vez).
+- `server/eventBus/publish.ts`: publica no outbox e faz fan-out — webhook via `postWithRetry` já homologado; SSE via broadcaster em memória.
+- `server/eventBus/sseRoute.ts`: `GET /api/events/stream`, autenticado por `Authorization: Bearer <subscriberApiKey>` (ou `?api_key=` como fallback para clientes de navegador).
+- **Limitação declarada:** o broadcaster SSE é em memória, por processo — não funciona em múltiplas instâncias sem um backplane de pub/sub compartilhado (que seria, na prática, um passo em direção à própria Opção 2). Ver `server/eventBus/sseBroadcaster.ts`.
+- A Opção 2 real (broker gerenciado) **não foi conectada** — não há infraestrutura provisionada nem acesso de rede a um serviço de fila neste ambiente. O outbox foi desenhado justamente para permitir essa evolução futura sem retrabalho.

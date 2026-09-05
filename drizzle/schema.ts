@@ -207,8 +207,63 @@ export const workflowProcessLogs = mysqlTable(
   ]
 );
 
+export const eventOutbox = mysqlTable(
+  "event_outbox",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("user_id").notNull(),
+    tenantId: varchar("tenant_id", { length: 64 }).notNull().default(DEFAULT_TENANT_ID),
+    correlationId: varchar("correlation_id", { length: 160 }).notNull(),
+    eventId: varchar("event_id", { length: 160 }).notNull(),
+    category: varchar("category", { length: 64 }).notNull(),
+    connectorId: varchar("connector_id", { length: 64 }),
+    payloadJson: text("payload_json").notNull(),
+    /** "pending" | "delivered" | "partial" | "failed" | "no_subscribers" */
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    deliveredCount: int("delivered_count").notNull().default(0),
+    failedCount: int("failed_count").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    index("event_outbox_tenant_category_idx").on(table.tenantId, table.category),
+    index("event_outbox_correlation_idx").on(table.correlationId),
+  ]
+);
+
+export const eventSubscriptions = mysqlTable(
+  "event_subscriptions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("user_id").notNull(),
+    tenantId: varchar("tenant_id", { length: 64 }).notNull().default(DEFAULT_TENANT_ID),
+    label: varchar("label", { length: 160 }).notNull(),
+    /** null = todas as categorias */
+    category: varchar("category", { length: 64 }),
+    /** "webhook" | "sse" */
+    deliveryMode: varchar("delivery_mode", { length: 16 }).notNull(),
+    endpointUrl: varchar("endpoint_url", { length: 2000 }),
+    headersJson: text("headers_json").default("{}"),
+    outboundApiKeyHeader: varchar("outbound_api_key_header", { length: 100 }).default("X-ALRT-API-Key"),
+    outboundApiKey: varchar("outbound_api_key", { length: 4000 }),
+    /** API key que o assinante apresenta para autenticar (SSE) ou validar a assinatura. Única. */
+    subscriberApiKey: varchar("subscriber_api_key", { length: 128 }).notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    index("event_subscriptions_tenant_category_idx").on(table.tenantId, table.category),
+    uniqueIndex("event_subscriptions_subscriber_key_unique").on(table.subscriberApiKey),
+  ]
+);
+
 export type AlertType = typeof alertTypes.$inferSelect;
 export type NewAlertType = typeof alertTypes.$inferInsert;
 export type DispatchedAlert = typeof dispatchedAlerts.$inferSelect;
 export type ReceivedWorkflowOccurrence = typeof receivedWorkflowOccurrences.$inferSelect;
 export type WorkflowProcessLog = typeof workflowProcessLogs.$inferSelect;
+export type EventOutboxRow = typeof eventOutbox.$inferSelect;
+export type NewEventOutboxRow = typeof eventOutbox.$inferInsert;
+export type EventSubscription = typeof eventSubscriptions.$inferSelect;
+export type NewEventSubscription = typeof eventSubscriptions.$inferInsert;

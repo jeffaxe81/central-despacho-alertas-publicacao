@@ -1,13 +1,17 @@
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { randomUUID } from "node:crypto";
 import {
   alertTypes,
   dispatchedAlerts,
+  eventOutbox,
+  eventSubscriptions,
   generalSettings,
   InsertUser,
   mockReceipts,
   NewAlertType,
+  NewEventOutboxRow,
+  NewEventSubscription,
   receivedWorkflowOccurrences,
   users,
   workflowProcessLogs,
@@ -443,4 +447,75 @@ export async function getDashboardMetrics(userId: number) {
     .from(dispatchedAlerts)
     .where(and(eq(dispatchedAlerts.userId, userId), gte(dispatchedAlerts.sentAt, since)))
     .groupBy(dispatchedAlerts.category, dispatchedAlerts.status);
+}
+
+/**
+ * Barramento de eventos (ADR-0001) — camada de durabilidade (Opção 3: outbox).
+ * Toda publicação é registrada aqui, independente de haver ou não assinantes,
+ * para permitir replay/auditoria e, futuramente, um consumidor de fila real
+ * (Opção 2) ler a partir desta tabela sem re-arquitetar o Motor.
+ */
+export async function recordOutboxEvent(input: NewEventOutboxRow) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(eventOutbox).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateOutboxDelivery(
+  id: number,
+  input: { status: string; deliveredCount: number; failedCount: number }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db.update(eventOutbox).set({ ...input, updatedAt: new Date() }).where(eq(eventOutbox.id, id));
+}
+
+/** Assinaturas ativas de um tenant para uma categoria (ou "todas", category=null) que combinam com o evento. */
+export async function listActiveSubscriptionsForEvent(tenantId: string, category: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(eventSubscriptions)
+    .where(
+      and(
+        eq(eventSubscriptions.tenantId, tenantId),
+        eq(eventSubscriptions.isActive, true),
+        or(isNull(eventSubscriptions.category), eq(eventSubscriptions.category, category))
+      )
+    );
+}
+
+export async function createEventSubscription(input: NewEventSubscription) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const result = await db.insert(eventSubscriptions).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function listEventSubscriptions(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(eventSubscriptions).where(eq(eventSubscriptions.userId, userId)).orderBy(desc(eventSubscriptions.createdAt));
+}
+
+export async function setEventSubscriptionActive(userId: number, id: number, isActive: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db
+    .update(eventSubscriptions)
+    .set({ isActive, updatedAt: new Date() })
+    .where(and(eq(eventSubscriptions.id, id), eq(eventSubscriptions.userId, userId)));
+}
+
+export async function getSubscriptionBySubscriberApiKey(subscriberApiKey: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const records = await db
+    .select()
+    .from(eventSubscriptions)
+    .where(and(eq(eventSubscriptions.subscriberApiKey, subscriberApiKey), eq(eventSubscriptions.isActive, true)))
+    .limit(1);
+  return records[0];
 }

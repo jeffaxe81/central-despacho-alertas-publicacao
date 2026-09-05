@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertType } from "../drizzle/schema";
 import { createHmac } from "node:crypto";
 import express from "express";
@@ -20,6 +20,9 @@ vi.mock("./db", () => ({
   createDispatchedAlert: vi.fn(),
   updateDispatchedAlert: vi.fn(),
   recordMockReceipt: vi.fn(),
+  recordOutboxEvent: vi.fn().mockResolvedValue(1),
+  listActiveSubscriptionsForEvent: vi.fn().mockResolvedValue([]),
+  updateOutboxDelivery: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockDb = vi.mocked(db);
@@ -52,6 +55,16 @@ const mockAlertType: AlertType = {
 afterEach(() => {
   vi.restoreAllMocks();
   global.fetch = originalFetch;
+});
+
+// vi.restoreAllMocks() (acima) limpa a implementação dos mocks de db.ts a
+// cada teste; sem redefinir o default aqui, o barramento de eventos
+// (publishEvent) receberia `undefined` de listActiveSubscriptionsForEvent
+// e quebraria com "Cannot read properties of undefined (reading 'length')".
+beforeEach(() => {
+  mockDb.recordOutboxEvent.mockResolvedValue(0);
+  mockDb.listActiveSubscriptionsForEvent.mockResolvedValue([]);
+  mockDb.updateOutboxDelivery.mockResolvedValue(undefined);
 });
 
 describe("gerador de alertas urbanos", () => {

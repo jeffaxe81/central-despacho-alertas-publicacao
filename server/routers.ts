@@ -1,4 +1,5 @@
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { nanoid } from "nanoid";
 import { parse as parseCookie } from "cookie";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -256,6 +257,42 @@ export const appRouter = router({
       }
       return db.updateAlertType(ctx.user.id, input.id, { autoEnabled: false, scheduleCronTaskUid: null });
     }),
+  }),
+  eventSubscriptions: router({
+    list: protectedProcedure.query(({ ctx }) => db.listEventSubscriptions(ctx.user.id)),
+    create: protectedProcedure.input(z.object({
+      label: z.string().trim().min(3).max(160),
+      category: z.enum(categoryValues).nullable(),
+      deliveryMode: z.enum(["webhook", "sse"]),
+      endpointUrl: z.string().trim().url().max(2000).optional(),
+      headersJson: z.string().trim().max(8000).default("{}"),
+      outboundApiKeyHeader: z.string().trim().min(1).max(100).default("X-ALRT-API-Key"),
+      outboundApiKey: z.string().max(4000).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      if (input.deliveryMode === "webhook" && !input.endpointUrl) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Informe a URL de destino para assinaturas do tipo webhook." });
+      }
+      parseHeaders(input.headersJson);
+      // Gerada uma única vez e devolvida na criação; não é possível recuperá-la depois
+      // (mesmo padrão de segredo de API key usado no restante da plataforma).
+      const subscriberApiKey = `sub_${nanoid(32)}`;
+      const id = await db.createEventSubscription({
+        userId: ctx.user.id,
+        tenantId: ctx.user.tenantId,
+        label: input.label,
+        category: input.category,
+        deliveryMode: input.deliveryMode,
+        endpointUrl: input.endpointUrl ?? null,
+        headersJson: input.headersJson,
+        outboundApiKeyHeader: input.outboundApiKeyHeader,
+        outboundApiKey: input.outboundApiKey ?? null,
+        subscriberApiKey,
+        isActive: true,
+      });
+      return { id, subscriberApiKey };
+    }),
+    setActive: protectedProcedure.input(z.object({ id: z.number().int().positive(), isActive: z.boolean() }))
+      .mutation(({ ctx, input }) => db.setEventSubscriptionActive(ctx.user.id, input.id, input.isActive)),
   }),
 });
 

@@ -101,14 +101,28 @@ Fecha o item de backlog da Seção 36 (operações críticas rastreáveis ponta 
 - Testes novos: `server/observability/logger.test.ts` (formato JSON, roteamento por nível) e uma asserção adicional no teste de bloqueio de conector "proposta" confirmando que o log estruturado correspondente é emitido.
 - Suíte completa: **67 testes passando, 1 skip pré-existente**; `tsc --noEmit` limpo.
 
-## 15. Backlog atualizado (sem prazo, conforme Seção 33)
+## 16. Ciclo 8 — Barramento de eventos: Opção 2 (alvo) com contingência 1+3, webhook e SSE (concluído)
+
+Decisão do usuário: Opção 2 (fila gerenciada) como alvo, Opções 1 e 3 como contingência, aceitando webhook e SSE por assinatura com API key. Ver `docs/adr-0001-barramento-eventos.md` para a análise completa.
+
+- Tabelas novas: `event_outbox` (durabilidade) e `event_subscriptions` (assinaturas), migração `drizzle/0011_add_event_bus.sql` gerada (não aplicada a banco real — mesma ressalva do Ciclo 4).
+- `server/eventBus/publish.ts`, `sseBroadcaster.ts`, `sseRoute.ts`: publicação, fan-out (webhook + SSE) e stream autenticado por API key.
+- `dispatchConfiguredAlert` publica no barramento independentemente do destino primário do `alertType` (Seção 8).
+- CRUD de assinaturas via tRPC (`eventSubscriptions.list/create/setActive`), autenticado, com `subscriberApiKey` gerada uma única vez.
+- Corrigidos durante a validação: constraint UNIQUE duplicada no schema; bug de lógica que marcaria uma assinatura SSE sem clientes conectados como "delivered" (corrigido para "failed").
+- Testes novos: `publish.test.ts` (4), `sseBroadcaster.test.ts` (2). Suíte completa: **73 testes passando, 1 skip pré-existente**; `tsc --noEmit` limpo; `pnpm run build` validado.
+- **Limitações declaradas:** broadcaster SSE em memória (não escala para múltiplas instâncias sem backplane compartilhado); Opção 2 real (broker gerenciado) não conectada — sem infraestrutura/acesso de rede a um serviço de fila neste ambiente; migração não aplicada a banco real.
+
+## 17. Backlog atualizado (sem prazo, conforme Seção 33)
 
 | Item | Prioridade | Depende de |
 | --- | --- | --- |
 | Confirmar contrato oficial do CRM (schema, auth, endpoint) e então ativar o conector CRM em produção | Alta | Time do CRM fornecer contrato equivalente ao `CONTRATO_ENTRADA_ALRT_AXE.md` |
 | Adicionar `tenant_id` ao schema (`alert_types`, `dispatched_alerts`, `general_settings`) preservando `userId` como está, para permitir multi-tenant sem quebrar o modelo atual | ~~Média~~ **Fase 1 e 2 concluídas (Ciclos 4 e 5)** | **Fase 3:** filtro de leitura por tenant — só quando existir feature multiusuário por tenant |
 | Estender o Framework de Conectores para o lado servidor: hoje o registro (`shared/connectors`) descreve o contrato, mas `alertEngine.ts`/`dispatchConfiguredAlert` ainda não consultam o `ConnectorDescriptor` para validar auth/versão antes de enviar | ~~Média-Alta~~ **Concluído no Ciclo 3** | — |
-| Avaliar modelo de publicação por contrato/barramento (em vez de POST direto por categoria) para múltiplos consumidores simultâneos | Média | Definição de qual barramento (fila, webhook registry, etc.) |
+| Avaliar modelo de publicação por contrato/barramento (em vez de POST direto por categoria) para múltiplos consumidores simultâneos | ~~Média~~ **Opções 1 e 3 implementadas no Ciclo 8 (webhook + outbox)** | **Opção 2 real** (broker gerenciado): sem infraestrutura provisionada nesta sessão |
+| Backplane compartilhado para SSE em múltiplas instâncias (Redis pub/sub ou similar) | Média | Decisão de infraestrutura + Opção 2 |
+| UI para gerenciar assinaturas do barramento (hoje só via tRPC, sem tela) | Baixa-Média | Nenhuma |
 | Observabilidade: logs estruturados com correlation ID ponta a ponta, métricas de entrega por destino | ~~Média~~ **Logs estruturados concluídos no Ciclo 7** | Métricas agregadas/dashboards ficam para quando houver decisão de qual coletor/APM adotar |
 | Cofre de segredos dedicado para API keys/tokens armazenados por categoria | Baixa-Média | Infraestrutura de secrets management |
 | Versionamento semântico do módulo com tags Git | Baixa | Nenhuma |

@@ -4,6 +4,7 @@ import { createHash, createHmac } from "node:crypto";
 import * as db from "./db";
 import { deliverToInternalMock } from "./mockDispatch";
 import { logEvent } from "./observability/logger";
+import { publishEvent } from "./eventBus/publish";
 import { CONNECTORS } from "../shared/connectors/registry";
 import type { ConnectorDescriptor } from "../shared/connectors/types";
 import { DEFAULT_SIMULATION_COORDINATES, type EventCategory, type Severity } from "../shared/alertSimulation";
@@ -400,6 +401,19 @@ export async function dispatchConfiguredAlert(
     payloadJson,
     isSimulated: true,
     simulationSeed: occurrence.seed,
+  });
+
+  // Publica no barramento de eventos (ADR-0001) independentemente do destino
+  // primário configurado no alertType — Seção 8: o Motor publica; os demais
+  // consumidores (assinantes) decidem o que fazer. Nunca lança (ver publish.ts).
+  await publishEvent({
+    userId: alertType.userId,
+    tenantId: alertType.tenantId,
+    correlationId: occurrence.correlationId,
+    eventId: occurrence.eventId,
+    category: alertType.category,
+    connectorId: matchedConnector?.id,
+    payload,
   });
 
   try {

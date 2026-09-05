@@ -10,6 +10,7 @@ import { mockDispatchHandler } from "../mockDispatch";
 import { scheduledAlertDispatchHandler } from "../scheduledAlerts";
 import { staticMapHandler } from "../staticMap";
 import { registerWorkflowRoutes } from "../workflowRoutes";
+import { registerEventBusRoutes } from "../eventBus/sseRoute";
 import { serveStatic, setupVite } from "./vite";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -41,6 +42,7 @@ async function startServer() {
   app.get("/api/maps/static", staticMapHandler);
   app.post("/api/mock/dispatch", mockDispatchHandler);
   registerWorkflowRoutes(app);
+  registerEventBusRoutes(app);
   app.post("/api/scheduled/dispatch-alert", scheduledAlertDispatchHandler);
   // tRPC API
   app.use(
