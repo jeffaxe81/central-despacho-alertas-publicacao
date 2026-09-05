@@ -1,38 +1,15 @@
-import { ALRT_CRM_INGRESS_PAYLOAD_TEMPLATE } from "@shared/alertSimulation";
+import { CONNECTOR_CRM } from "@shared/connectors/registry";
+import { applyConnectorProfile } from "@/lib/connectorProfile";
 
 /**
- * Endpoint do CRM ainda não confirmado por contrato oficial (ver
- * relatorio-conformidade-master.md, item de backlog "Integração CRM").
- * Mantido vazio propositalmente: nunca inventar URL de destino real.
+ * Wrapper fino sobre o Framework de Conectores — ver alrtAxeProfile.ts.
+ * O conector CRM é "proposta": endpoint vazio e modo teste, até confirmação
+ * de contrato oficial (ver relatorio-conformidade-master.md).
  */
-export const ALRT_CRM_PLACEHOLDER_ENDPOINT = "";
+export const ALRT_CRM_PLACEHOLDER_ENDPOINT = CONNECTOR_CRM.endpointUrl;
 
-type AlrtCrmDraft = {
-  endpointUrl: string;
-  headersJson: string;
-  authToken: string;
-  clearToken: boolean;
-  apiKeyHeader: string;
-  clearApiKey: boolean;
-  isTestMode: boolean;
-  payloadTemplate: string;
-};
+type AlrtCrmDraft = Parameters<typeof applyConnectorProfile>[1];
 
-/**
- * Aplica o modelo de envelope proposto para o CRM. Diferente do perfil ALRT → AXE
- * (homologado com contrato real), este perfil mantém isTestMode=true e endpoint
- * vazio até que o CRM confirme schema, autenticação e endpoint reais.
- */
 export function applyAlrtCrmProfile<T extends AlrtCrmDraft>(draft: T): T {
-  return {
-    ...draft,
-    endpointUrl: ALRT_CRM_PLACEHOLDER_ENDPOINT,
-    headersJson: "{}",
-    authToken: "",
-    clearToken: true,
-    apiKeyHeader: "X-ALRT-API-Key",
-    clearApiKey: true,
-    isTestMode: true,
-    payloadTemplate: ALRT_CRM_INGRESS_PAYLOAD_TEMPLATE,
-  };
+  return applyConnectorProfile(CONNECTOR_CRM, draft);
 }

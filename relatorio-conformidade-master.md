@@ -39,20 +39,32 @@
 - Testes automatizados criados (`alrtCrmProfile.test.ts`) e suíte completa reexecutada: **58 testes passando, 1 skip pré-existente** (health check AXE, que já era condicional a ambiente).
 - `tsc --noEmit` sem erros.
 
-## 4. Backlog registrado (sem prazo, conforme Seção 33)
+## 4. Ciclo 2 — Framework Universal de Conectores (concluído e testado)
+
+Extraído o Framework de Conectores (Seção 9) a partir da duplicação AXE/CRM do Ciclo 1:
+
+- `shared/connectors/types.ts`: `ConnectorDescriptor` (id, versão, status homologado/proposta, estratégia de auth, template, campos exigidos do envelope) + `checkConnectorContract(...)`, validador de contrato reutilizável.
+- `shared/connectors/registry.ts`: `CONNECTOR_AXE` e `CONNECTOR_CRM` como dados declarativos; `CONNECTORS` é o ponto único de registro — um novo destino não exige nova função nem novo teste manual.
+- `client/src/lib/connectorProfile.ts`: `applyConnectorProfile(connector, draft)` — implementação única que substitui a lógica antes duplicada em `alrtAxeProfile.ts`/`alrtCrmProfile.ts` (mantidos como wrappers finos por compatibilidade, Seção 35).
+- `shared/connectors/registry.contract.test.ts`: teste de contrato genérico (`it.each(CONNECTORS)`) que valida automaticamente todo conector registrado — inclui regra de segurança "conector em status 'proposta' nunca tem endpoint real nem sai do modo teste por padrão".
+- Corrigido `vitest.config.ts`: `shared/**/*.test.ts` não estava no `include`, então os testes de contrato não rodavam. Achado durante a validação deste ciclo — sem essa correção, o teste de contrato existia mas nunca era executado (violaria a Seção 24, qualidade bloqueante).
+- Suíte completa reexecutada após cada mudança: **62 testes passando, 1 skip pré-existente**; `tsc --noEmit` limpo.
+
+## 5. Backlog registrado (sem prazo, conforme Seção 33)
 
 | Item | Prioridade | Depende de |
 | --- | --- | --- |
-| Confirmar contrato oficial do CRM (schema, auth, endpoint) e então ativar o perfil ALRT → CRM em produção | Alta | Time do CRM fornecer contrato equivalente ao `CONTRATO_ENTRADA_ALRT_AXE.md` |
+| Confirmar contrato oficial do CRM (schema, auth, endpoint) e então ativar o conector CRM em produção | Alta | Time do CRM fornecer contrato equivalente ao `CONTRATO_ENTRADA_ALRT_AXE.md` |
 | Adicionar `tenant_id` ao schema (`alert_types`, `dispatched_alerts`, `general_settings`) preservando `userId` como está, para permitir multi-tenant sem quebrar o modelo atual | Média | Decisão de produto sobre shared-DB + tenant_id (Seção 10) |
-| Extrair um Framework de Conectores mínimo (interface comum: configurar → transformar → enviar → registrar) para que AXE e CRM (e futuros destinos) parem de ser perfis hardcoded na UI | Média-Alta | Nenhuma; pode iniciar já no próximo ciclo |
+| Estender o Framework de Conectores para o lado servidor: hoje o registro (`shared/connectors`) descreve o contrato, mas `alertEngine.ts`/`dispatchConfiguredAlert` ainda não consultam o `ConnectorDescriptor` para validar auth/versão antes de enviar | Média-Alta | Nenhuma; pode iniciar já no próximo ciclo |
 | Avaliar modelo de publicação por contrato/barramento (em vez de POST direto por categoria) para múltiplos consumidores simultâneos | Média | Definição de qual barramento (fila, webhook registry, etc.) |
 | Observabilidade: logs estruturados com correlation ID ponta a ponta, métricas de entrega por destino | Média | Nenhuma |
 | Cofre de segredos dedicado para API keys/tokens armazenados por categoria | Baixa-Média | Infraestrutura de secrets management |
 | Versionamento semântico do módulo com tags Git | Baixa | Nenhuma |
 
-## 5. Não realizado neste ciclo (declarado explicitamente, Seção 46)
+## 6. Não realizado neste ciclo (declarado explicitamente, Seção 46)
 
-- Nenhum commit ou push foi feito nesta sessão — as alterações estão apenas na árvore de trabalho local. Não houve credencial de escrita configurada para este repositório.
+- Nenhum push foi feito — apenas checkpoints locais (`git commit`). Não há credencial de escrita configurada para este repositório remoto.
 - Nenhuma migração de banco foi criada (o gap de `tenant_id` está registrado em backlog, não implementado).
-- Nenhum endpoint real de CRM foi contatado ou validado — o perfil é uma proposta de schema aguardando confirmação.
+- Nenhum endpoint real de CRM foi contatado ou validado — o conector é uma proposta de schema aguardando confirmação.
+- O lado servidor (`alertEngine.ts`) ainda não consulta o registro de conectores; a extração cobriu o contrato e a camada de UI/testes, não o dispatcher em si (registrado em backlog).

@@ -1,28 +1,16 @@
-import { ALRT_AXE_INGRESS_PAYLOAD_TEMPLATE } from "@shared/alertSimulation";
+import { CONNECTOR_AXE } from "@shared/connectors/registry";
+import { applyConnectorProfile } from "@/lib/connectorProfile";
 
-export const ALRT_AXE_HOMOLOGATION_ENDPOINT = "https://dispatchapp-dmbshjft.manus.space/api/integrations/alrt/events";
+/**
+ * Mantido como wrapper fino sobre o Framework de Conectores (connectorProfile.ts
+ * + shared/connectors/registry.ts) para preservar compatibilidade com o código
+ * e os testes existentes que já importam este módulo (Seção 35 do Master:
+ * priorizar refatoração incremental em vez de reescrita total).
+ */
+export const ALRT_AXE_HOMOLOGATION_ENDPOINT = CONNECTOR_AXE.endpointUrl;
 
-type AlrtAxeDraft = {
-  endpointUrl: string;
-  headersJson: string;
-  authToken: string;
-  clearToken: boolean;
-  apiKeyHeader: string;
-  clearApiKey: boolean;
-  isTestMode: boolean;
-  payloadTemplate: string;
-};
+type AlrtAxeDraft = Parameters<typeof applyConnectorProfile>[1];
 
 export function applyAlrtAxeProfile<T extends AlrtAxeDraft>(draft: T): T {
-  return {
-    ...draft,
-    endpointUrl: ALRT_AXE_HOMOLOGATION_ENDPOINT,
-    headersJson: "{}",
-    authToken: "",
-    clearToken: true,
-    apiKeyHeader: "X-ALRT-API-Key",
-    clearApiKey: false,
-    isTestMode: false,
-    payloadTemplate: ALRT_AXE_INGRESS_PAYLOAD_TEMPLATE,
-  };
+  return applyConnectorProfile(CONNECTOR_AXE, draft);
 }
