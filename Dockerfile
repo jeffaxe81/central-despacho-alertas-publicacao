@@ -26,7 +26,11 @@ ENV NODE_ENV=production
 RUN npm install -g pnpm@10.4.1
 COPY package.json pnpm-lock.yaml ./
 COPY patches ./patches
-RUN pnpm install --frozen-lockfile --prod
+# Instalação completa (não --prod): o bundle gerado pelo esbuild usa
+# --packages=external, então pacotes importados estaticamente pelo servidor
+# (ex.: "vite", usado em server/_core/vite.ts para servir estáticos) precisam
+# estar presentes mesmo em produção, mesmo sendo devDependency.
+RUN pnpm install --frozen-lockfile
 
 COPY --from=build /app/dist ./dist
 
