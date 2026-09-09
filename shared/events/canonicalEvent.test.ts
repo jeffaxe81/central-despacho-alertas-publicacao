@@ -76,6 +76,12 @@ describe("canonicalEventSchema", () => {
     expect(canonicalEventSchema.safeParse(candidate).success).toBe(true);
   });
 
+  it("rejeita extensão superior não declarada no contrato canônico v1", () => {
+    const candidate = { ...validEvent, undeclared: 1n };
+
+    expect(canonicalEventSchema.safeParse(candidate).success).toBe(false);
+  });
+
   it.each([
     ["specversion", { ...validEvent, specversion: "0.3" }],
     ["tipo", { ...validEvent, type: "iluminacao.falha" }],

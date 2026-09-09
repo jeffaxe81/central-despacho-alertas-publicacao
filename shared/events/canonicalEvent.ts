@@ -60,6 +60,6 @@ export const canonicalEventSchema = z
     axessimulated: z.literal(true),
     data: z.record(z.string(), jsonValueSchema),
   })
-  .passthrough();
+  .strict();
 
 export type CanonicalEvent = z.infer<typeof canonicalEventSchema>;

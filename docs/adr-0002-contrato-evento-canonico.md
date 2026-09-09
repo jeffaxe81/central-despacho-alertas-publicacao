@@ -26,6 +26,8 @@ Tipos seguem `com.axesistemas.<domínio>.<entidade>.<ação>.vN`. Schemas seguem
 
 As versões de cenário e schema usam o núcleo SemVer `X.Y.Z`, inclusive versões iniciais como `0.1.0`, sem zeros à esquerda. Sufixos de pré-release e build metadata ficam fora desta primeira versão.
 
+O envelope v1 é fechado: campos superiores não declarados são rejeitados. Uma nova extensão CloudEvents deve ser adicionada explicitamente ao schema e versionada, garantindo que todo evento validado permaneça serializável em JSON.
+
 ## Consequências
 
 - O núcleo ganha um contrato único, validável e independente do Despacho.
