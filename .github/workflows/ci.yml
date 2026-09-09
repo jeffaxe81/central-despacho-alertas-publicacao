@@ -22,7 +22,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # O lockfile resolve undici 8, cujo runtime mínimo é Node 22.19.
+          # Node 24 também é a versão usada na validação local deste projeto.
+          node-version: "24"
           cache: "pnpm"
 
       - name: Instalar dependências

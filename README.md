@@ -6,12 +6,12 @@ Esta aplicação é um **simulador independente de alertas urbanos**. Ela cria o
 
 O painel disponibiliza seis categorias iniciais: iluminação pública, segurança pública municipal, defesa civil, semáforos, câmeras e botão de perigo. Na tela **Simular alertas**, o botão **Disparar** gera uma ocorrência individual e registra o resultado. A tela **Histórico** preserva endereço, narrativa, payload, tentativas e retorno HTTP para auditoria.
 
-| Tela | Finalidade |
-| --- | --- |
-| **Visão geral** | Exibe totais e a matriz de sucesso, falha e pendência por categoria na janela móvel de 24 horas. |
-| **Simular alertas** | Gera e envia uma ocorrência fictícia por categoria. |
-| **Histórico** | Consulta registros de entrega, status, resposta e narrativa. |
-| **Integrações** | Configura endpoint, cabeçalhos, token, payload e automação por tipo. |
+| Tela                | Finalidade                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------ |
+| **Visão geral**     | Exibe totais e a matriz de sucesso, falha e pendência por categoria na janela móvel de 24 horas. |
+| **Simular alertas** | Gera e envia uma ocorrência fictícia por categoria.                                              |
+| **Histórico**       | Consulta registros de entrega, status, resposta e narrativa.                                     |
+| **Integrações**     | Configura endpoint, cabeçalhos, token, payload e automação por tipo.                             |
 
 ## Modo teste e integração REST
 
@@ -33,6 +33,12 @@ Cada categoria pode ser ativada para envio periódico nos intervalos de 5, 10, 1
 
 Cada alerta armazena uma semente de simulação. A mesma categoria, severidade, semente e timestamp reproduzem exatamente o mesmo endereço e narrativa, o que permite testar e auditar cenários de forma consistente.
 
+## Contrato canônico v1
+
+O primeiro contrato interno do Motor Universal de Eventos está em `shared/events/canonicalEvent.ts`. Ele usa o envelope CloudEvents 1.0 com extensões Axesistemas obrigatórias para execução, cenário, versão, semente e sequência.
+
+Nesta etapa o contrato é somente validável e aceita exclusivamente eventos marcados como sintéticos (`axessimulated: true`). O fluxo atual, o barramento e o contrato ALRT → AXE ainda não foram alterados. A integração ocorrerá por adaptador em uma microentrega posterior, preservando compatibilidade.
+
 ## Qualidade
 
-Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, validação de cabeçalhos e payloads, tentativas de entrega, mock interno, intervalos de automação e procedimentos de configuração.
+Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, contrato canônico v1, validação de cabeçalhos e payloads, tentativas de entrega, mock interno, intervalos de automação e procedimentos de configuração.
