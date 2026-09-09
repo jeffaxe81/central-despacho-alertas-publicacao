@@ -39,6 +39,8 @@ O primeiro contrato interno do Motor Universal de Eventos está em `shared/event
 
 Nesta etapa o contrato é somente validável e aceita exclusivamente eventos marcados como sintéticos (`axessimulated: true`). O fluxo atual, o barramento e o contrato ALRT → AXE ainda não foram alterados. A integração ocorrerá por adaptador em uma microentrega posterior, preservando compatibilidade.
 
+O adaptador puro `shared/connectors/alrtAxeAdapter.ts` já converte um evento canônico para o envelope ALRT → AXE homologado. Ele valida os dados necessários, rejeita entradas incompletas e não realiza chamadas de rede. O fluxo legado ainda não o invoca automaticamente.
+
 ## Qualidade
 
 Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, contrato canônico v1, validação de cabeçalhos e payloads, tentativas de entrega, mock interno, intervalos de automação e procedimentos de configuração.
