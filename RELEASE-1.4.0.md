@@ -7,6 +7,7 @@
 - trava `axessimulated: true` nesta primeira versão;
 - sete testes de contrato;
 - ADR-0002 e orientação de validação.
+- CI alinhado ao Node 24, compatível com o requisito de runtime do `undici@8.10.0` resolvido no lockfile.
 
 ## Preservado
 
