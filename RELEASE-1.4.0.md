@@ -5,7 +5,7 @@
 - schema Zod tipado para o envelope canônico baseado em CloudEvents 1.0;
 - rastreabilidade e repetibilidade obrigatórias;
 - trava `axessimulated: true` nesta primeira versão;
-- sete testes de contrato;
+- dezessete testes de contrato, incluindo valores JSON, taxonomia e SemVer;
 - ADR-0002 e orientação de validação.
 - CI alinhado ao Node 24, compatível com o requisito de runtime do `undici@8.10.0` resolvido no lockfile.
 

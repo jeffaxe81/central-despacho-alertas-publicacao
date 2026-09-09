@@ -22,6 +22,10 @@ Campos obrigatórios desta versão:
 
 Tipos seguem `com.axesistemas.<domínio>.<entidade>.<ação>.vN`. Schemas seguem `urn:axesistemas:schema:<domínio>:<nome>:X.Y.Z`.
 
+`data` deve ser um objeto JSON. Seus valores podem conter strings, números finitos, booleanos, `null`, arrays e outros objetos JSON. Valores exclusivos do JavaScript, como `bigint`, `undefined`, funções, `NaN` e infinito, são rejeitados antes da persistência ou publicação.
+
+As versões de cenário e schema usam o núcleo SemVer `X.Y.Z`, inclusive versões iniciais como `0.1.0`, sem zeros à esquerda. Sufixos de pré-release e build metadata ficam fora desta primeira versão.
+
 ## Consequências
 
 - O núcleo ganha um contrato único, validável e independente do Despacho.

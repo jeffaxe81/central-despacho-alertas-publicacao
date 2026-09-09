@@ -1,10 +1,34 @@
 import { z } from "zod";
 
-const axesEventType =
-  /^com\.axesistemas\.[a-z0-9]+(?:[.-][a-z0-9]+)*\.v[1-9][0-9]*$/;
-const axesDataSchema =
-  /^urn:axesistemas:schema:[a-z0-9]+(?::[a-z0-9-]+)*:[1-9][0-9]*\.[0-9]+\.[0-9]+$/;
-const semanticVersion = /^[1-9][0-9]*\.[0-9]+\.[0-9]+$/;
+const identifierSegment = "[a-z0-9]+(?:-[a-z0-9]+)*";
+const semanticVersionCore =
+  "(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)";
+const axesEventType = new RegExp(
+  `^com\\.axesistemas\\.${identifierSegment}\\.${identifierSegment}\\.${identifierSegment}\\.v[1-9][0-9]*$`
+);
+const axesDataSchema = new RegExp(
+  `^urn:axesistemas:schema:${identifierSegment}:${identifierSegment}:${semanticVersionCore}$`
+);
+const semanticVersion = new RegExp(`^${semanticVersionCore}$`);
+
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number().finite(),
+    z.boolean(),
+    z.null(),
+    z.array(jsonValueSchema),
+    z.record(z.string(), jsonValueSchema),
+  ])
+);
 
 /**
  * Envelope canônico interno do Motor Universal de Eventos.
@@ -34,7 +58,7 @@ export const canonicalEventSchema = z
     axesseed: z.string().trim().min(1).max(300),
     axessequence: z.number().int().positive(),
     axessimulated: z.literal(true),
-    data: z.record(z.string(), z.unknown()),
+    data: z.record(z.string(), jsonValueSchema),
   })
   .passthrough();
 

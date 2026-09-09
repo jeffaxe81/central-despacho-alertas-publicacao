@@ -46,10 +46,53 @@ describe("canonicalEventSchema", () => {
   });
 
   it.each([
+    ["bigint", 1n],
+    ["undefined", undefined],
+    ["função", () => 1],
+    ["NaN", Number.NaN],
+    ["infinito", Number.POSITIVE_INFINITY],
+    ["undefined aninhado", { nested: ["ok", undefined] }],
+  ])(
+    "rejeita valor %s que não pode ser representado fielmente em JSON",
+    (_kind, invalid) => {
+      expect(
+        canonicalEventSchema.safeParse({ ...validEvent, data: { invalid } })
+          .success
+      ).toBe(false);
+    }
+  );
+
+  it("aceita valores JSON aninhados e versão SemVer com major zero", () => {
+    const candidate = {
+      ...validEvent,
+      axesscenarioversion: "0.1.0",
+      data: {
+        enabled: true,
+        value: null,
+        readings: [1, "dois", { ok: false }],
+      },
+    };
+
+    expect(canonicalEventSchema.safeParse(candidate).success).toBe(true);
+  });
+
+  it.each([
     ["specversion", { ...validEvent, specversion: "0.3" }],
     ["tipo", { ...validEvent, type: "iluminacao.falha" }],
+    [
+      "tipo sem entidade e ação",
+      { ...validEvent, type: "com.axesistemas.foo.v1" },
+    ],
     ["schema", { ...validEvent, dataschema: "schema-sem-versao" }],
+    [
+      "schema sem nome",
+      { ...validEvent, dataschema: "urn:axesistemas:schema:foo:1.0.0" },
+    ],
     ["versão do cenário", { ...validEvent, axesscenarioversion: "v1" }],
+    [
+      "versão com zero à esquerda",
+      { ...validEvent, axesscenarioversion: "1.01.0" },
+    ],
   ])("rejeita %s fora do contrato canônico v1", (_field, candidate) => {
     expect(canonicalEventSchema.safeParse(candidate).success).toBe(false);
   });
