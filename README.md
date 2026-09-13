@@ -37,10 +37,14 @@ Cada alerta armazena uma semente de simulação. A mesma categoria, severidade, 
 
 O primeiro contrato interno do Motor Universal de Eventos está em `shared/events/canonicalEvent.ts`. Ele usa o envelope CloudEvents 1.0 com extensões Axesistemas obrigatórias para execução, cenário, versão, semente e sequência.
 
-Nesta etapa o contrato é somente validável e aceita exclusivamente eventos marcados como sintéticos (`axessimulated: true`). O fluxo atual, o barramento e o contrato ALRT → AXE ainda não foram alterados. A integração ocorrerá por adaptador em uma microentrega posterior, preservando compatibilidade.
+O contrato canônico permanece restrito a eventos sintéticos (`axessimulated: true`). O fluxo produtivo, o barramento e a entrega real ALRT → AXE continuam preservados enquanto a migração é validada por microentregas.
 
-O adaptador puro `shared/connectors/alrtAxeAdapter.ts` já converte um evento canônico para o envelope ALRT → AXE homologado. Ele valida os dados necessários, rejeita entradas incompletas e não realiza chamadas de rede. O fluxo legado ainda não o invoca automaticamente.
+O adaptador puro `shared/connectors/alrtAxeAdapter.ts` converte um evento canônico para o envelope ALRT → AXE homologado. Ele valida os dados necessários, rejeita entradas incompletas e não realiza chamadas de rede. O fluxo de entrega real ainda não depende automaticamente desse adaptador.
+
+Na MUE-003, o modo teste ALRT → AXE passou a executar uma validação **shadow** no mock interno. O mock reconhece o envelope legado `alert.received`, reconstrói um evento canônico sintético equivalente, projeta-o novamente por `toAlrtAxeEvent` e compara a saída com o payload legado. O resultado é exposto por `compatibility.checked` e `compatibility.equivalent`.
+
+Essa comparação não publica eventos canônicos no barramento e não cria chamadas HTTP adicionais. Ela serve como evidência de compatibilidade antes de mover a geração canônica para uma etapa anterior do fluxo.
 
 ## Qualidade
 
-Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, contrato canônico v1, validação de cabeçalhos e payloads, tentativas de entrega, mock interno, intervalos de automação e procedimentos de configuração.
+Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, contrato canônico v1, adaptador ALRT → AXE, shadow de compatibilidade no mock, validação de cabeçalhos e payloads, tentativas de entrega, intervalos de automação e procedimentos de configuração.
