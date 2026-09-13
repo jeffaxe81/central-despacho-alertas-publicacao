@@ -5,6 +5,7 @@ import * as db from "./db";
 import { deliverToInternalMock } from "./mockDispatch";
 import { logEvent } from "./observability/logger";
 import { publishEvent } from "./eventBus/publish";
+import { publishCanonicalShadowEvent } from "./eventBus/canonicalShadow";
 import { CONNECTORS } from "../shared/connectors/registry";
 import type { ConnectorDescriptor } from "../shared/connectors/types";
 import { DEFAULT_SIMULATION_COORDINATES, type EventCategory, type Severity } from "../shared/alertSimulation";
@@ -502,6 +503,15 @@ export async function dispatchConfiguredAlert(
             : undefined,
           payload,
         });
+    const compatibility = alertType.isTestMode
+      ? (result as Awaited<ReturnType<typeof deliverToInternalMock>>).compatibility
+      : undefined;
+    if (canonicalEvent && compatibility?.checked) {
+      await publishCanonicalShadowEvent({
+        canonicalEvent,
+        equivalent: compatibility.equivalent,
+      });
+    }
     await db.updateDispatchedAlert(alertId, {
       status: result.ok ? "sucesso" : "falha",
       responseHttpStatus: result.status,
