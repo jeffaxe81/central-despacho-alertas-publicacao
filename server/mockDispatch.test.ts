@@ -74,14 +74,15 @@ describe("endpoint mock interno", () => {
         },
       },
     };
-    const input: any = {
-      userId: 12,
-      dispatchedAlertId: 46,
-      payloadJson: JSON.stringify(payload),
-      canonicalEvent,
-    };
 
-    await expect(deliverToInternalMock(input)).resolves.toMatchObject({
+    await expect(
+      deliverToInternalMock({
+        userId: 12,
+        dispatchedAlertId: 46,
+        payloadJson: JSON.stringify(payload),
+        canonicalEvent,
+      })
+    ).resolves.toMatchObject({
       ok: true,
       status: 202,
       compatibility: { checked: true, equivalent: true },
