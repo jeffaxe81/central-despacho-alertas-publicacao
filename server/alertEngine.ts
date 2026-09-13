@@ -503,15 +503,13 @@ export async function dispatchConfiguredAlert(
             : undefined,
           payload,
         });
-    if (
-      alertType.isTestMode &&
-      canonicalEvent &&
-      "compatibility" in result &&
-      result.compatibility?.checked
-    ) {
+    const compatibility = alertType.isTestMode
+      ? (result as Awaited<ReturnType<typeof deliverToInternalMock>>).compatibility
+      : undefined;
+    if (canonicalEvent && compatibility?.checked) {
       await publishCanonicalShadowEvent({
         canonicalEvent,
-        equivalent: result.compatibility.equivalent,
+        equivalent: compatibility.equivalent,
       });
     }
     await db.updateDispatchedAlert(alertId, {
