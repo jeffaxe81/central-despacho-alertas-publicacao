@@ -42,6 +42,19 @@ const axeTestAlertType: AlertType = {
   updatedAt: new Date(),
 };
 
+function structuredLogEntries(spy: ReturnType<typeof vi.spyOn>) {
+  return spy.mock.calls
+    .map(call => call[0])
+    .filter((value): value is string => typeof value === "string")
+    .flatMap(value => {
+      try {
+        return [JSON.parse(value) as Record<string, unknown>];
+      } catch {
+        return [];
+      }
+    });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   resetCanonicalShadowSubscribersForTest();
@@ -91,5 +104,64 @@ describe("MUE-008 publicação shadow no dispatcher", () => {
       status: 202,
       compatibility: { checked: true, equivalent: true },
     });
+  });
+});
+
+describe("MUE-009 observabilidade da publicação shadow", () => {
+  it("registra delivered e failed após publicação shadow bem-sucedida", async () => {
+    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const unsubscribe = subscribeCanonicalShadow(() => undefined);
+
+    const result = await dispatchConfiguredAlert(axeTestAlertType);
+    const publicationLog = structuredLogEntries(consoleLog).find(
+      entry => entry.event === "eventbus.canonical_shadow_published"
+    );
+
+    expect(result).toMatchObject({ ok: true, status: 202 });
+    expect(publicationLog).toMatchObject({
+      level: "info",
+      event: "eventbus.canonical_shadow_published",
+      correlationId: result.occurrence.correlationId,
+      type: "com.axesistemas.alerta.urbano.recebido.v1",
+      simulated: true,
+      equivalent: true,
+      delivered: 1,
+      failed: 0,
+    });
+    expect(publicationLog?.eventId).toBe(`evt_${result.occurrence.eventId}`);
+
+    unsubscribe();
+    consoleLog.mockRestore();
+  });
+
+  it("registra warn e failed sem alterar o 202 quando assinante shadow falha", async () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    subscribeCanonicalShadow(() => {
+      throw new Error("falha observável do assinante shadow");
+    });
+
+    const result = await dispatchConfiguredAlert(axeTestAlertType);
+    const publicationLog = structuredLogEntries(consoleWarn).find(
+      entry => entry.event === "eventbus.canonical_shadow_published"
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: 202,
+      compatibility: { checked: true, equivalent: true },
+    });
+    expect(publicationLog).toMatchObject({
+      level: "warn",
+      event: "eventbus.canonical_shadow_published",
+      correlationId: result.occurrence.correlationId,
+      type: "com.axesistemas.alerta.urbano.recebido.v1",
+      simulated: true,
+      equivalent: true,
+      delivered: 0,
+      failed: 1,
+    });
+    expect(publicationLog?.eventId).toBe(`evt_${result.occurrence.eventId}`);
+
+    consoleWarn.mockRestore();
   });
 });
