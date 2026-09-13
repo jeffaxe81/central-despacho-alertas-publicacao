@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const recordMockReceipt = vi.hoisted(() => vi.fn());
 const logEvent = vi.hoisted(() => vi.fn());
@@ -7,6 +7,10 @@ vi.mock("./db", () => ({ recordMockReceipt }));
 vi.mock("./observability/logger", () => ({ logEvent }));
 
 import { deliverToInternalMock } from "./mockDispatch";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("endpoint mock interno", () => {
   it("persiste o recebimento e retorna aceitação para a simulação", async () => {
@@ -103,7 +107,7 @@ describe("endpoint mock interno", () => {
     );
   });
 
-  it("não reconstrói canônico a partir do payload legado quando canonicalEvent não é informado", async () => {
+  it("não reconstrói nem observa canônico quando canonicalEvent não é informado", async () => {
     recordMockReceipt.mockResolvedValue(undefined);
     const payload = {
       schemaVersion: "1.0",
@@ -136,9 +140,10 @@ describe("endpoint mock interno", () => {
 
     expect(result).toMatchObject({ ok: true, status: 202 });
     expect(result).not.toHaveProperty("compatibility");
+    expect(logEvent).not.toHaveBeenCalled();
   });
 
-  it("não bloqueia o mock quando o canonicalEvent explícito é inválido", async () => {
+  it("não bloqueia o mock e observa equivalência falsa quando o canonicalEvent explícito é inválido", async () => {
     recordMockReceipt.mockResolvedValue(undefined);
     const payload = {
       schemaVersion: "1.0",
@@ -175,5 +180,14 @@ describe("endpoint mock interno", () => {
       status: 202,
       compatibility: { checked: true, equivalent: false },
     });
+
+    expect(logEvent).toHaveBeenCalledWith(
+      "info",
+      "eventbus.canonical_shadow_observed",
+      expect.objectContaining({
+        simulated: false,
+        equivalent: false,
+      })
+    );
   });
 });
