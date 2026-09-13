@@ -3,6 +3,10 @@ import type { AlertType } from "../drizzle/schema";
 import { ALRT_AXE_INGRESS_PAYLOAD_TEMPLATE } from "../shared/alertSimulation";
 import { dispatchConfiguredAlert } from "./alertEngine";
 import * as db from "./db";
+import {
+  resetCanonicalShadowSubscribersForTest,
+  subscribeCanonicalShadow,
+} from "./eventBus/canonicalShadow";
 
 vi.mock("./db", () => ({
   createDispatchedAlert: vi.fn(),
@@ -40,6 +44,7 @@ const axeTestAlertType: AlertType = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetCanonicalShadowSubscribersForTest();
   mockDb.createDispatchedAlert.mockResolvedValue(301);
   mockDb.updateDispatchedAlert.mockResolvedValue(undefined);
   mockDb.recordMockReceipt.mockResolvedValue(undefined);
@@ -48,8 +53,11 @@ beforeEach(() => {
   mockDb.updateOutboxDelivery.mockResolvedValue(undefined);
 });
 
-describe("MUE-003 shadow canônico no dispatcher", () => {
-  it("compara a projeção canônica com o legado quando ALRT → AXE está em modo teste", async () => {
+describe("MUE-008 publicação shadow no dispatcher", () => {
+  it("publica o canônico explícito usando a equivalência validada pelo mock", async () => {
+    const received: Array<{ canonicalEvent: unknown; equivalent: boolean }> = [];
+    const unsubscribe = subscribeCanonicalShadow(message => received.push(message));
+
     const result = await dispatchConfiguredAlert(axeTestAlertType);
 
     expect(result).toMatchObject({
@@ -61,5 +69,15 @@ describe("MUE-003 shadow canônico no dispatcher", () => {
       userId: 7,
       dispatchedAlertId: 301,
     }));
+    expect(received).toHaveLength(1);
+    expect(received[0]?.equivalent).toBe(true);
+    expect(received[0]?.canonicalEvent).toMatchObject({
+      specversion: "1.0",
+      type: "com.axesistemas.alerta.urbano.recebido.v1",
+      axessimulated: true,
+      correlationid: result.occurrence.correlationId,
+    });
+
+    unsubscribe();
   });
 });
