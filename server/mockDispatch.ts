@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { toAlrtAxeEvent } from "../shared/connectors/alrtAxeAdapter";
 import { sdk } from "./_core/sdk";
 import * as db from "./db";
+import { logEvent } from "./observability/logger";
 
 function compareCanonicalShadow(canonicalEvent: unknown, legacyPayload: unknown) {
   try {
@@ -10,6 +11,20 @@ function compareCanonicalShadow(canonicalEvent: unknown, legacyPayload: unknown)
   } catch {
     return false;
   }
+}
+
+function logCanonicalShadowObservation(canonicalEvent: unknown, equivalent: boolean) {
+  const canonical = canonicalEvent && typeof canonicalEvent === "object" && !Array.isArray(canonicalEvent)
+    ? canonicalEvent as Record<string, unknown>
+    : {};
+
+  logEvent("info", "eventbus.canonical_shadow_observed", {
+    correlationId: typeof canonical.correlationid === "string" ? canonical.correlationid : undefined,
+    eventId: typeof canonical.id === "string" ? canonical.id : undefined,
+    type: typeof canonical.type === "string" ? canonical.type : undefined,
+    simulated: canonical.axessimulated === true,
+    equivalent,
+  });
 }
 
 export async function deliverToInternalMock(input: {
@@ -31,6 +46,10 @@ export async function deliverToInternalMock(input: {
         equivalent: compareCanonicalShadow(input.canonicalEvent, legacyPayload),
       }
     : undefined;
+
+  if (input.canonicalEvent && compatibility) {
+    logCanonicalShadowObservation(input.canonicalEvent, compatibility.equivalent);
+  }
 
   return {
     ok: true as const,
