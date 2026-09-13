@@ -87,4 +87,23 @@ describe("MUE-007 integração mock → canal shadow", () => {
 
     unsubscribe();
   });
+
+  it("mantém a resposta 202 quando um assinante shadow falha", async () => {
+    subscribeCanonicalShadow(() => {
+      throw new Error("falha isolada do assinante shadow");
+    });
+
+    await expect(
+      deliverToInternalMock({
+        userId: 12,
+        dispatchedAlertId: 71,
+        payloadJson: '{"schemaVersion":"1.0"}',
+        canonicalEvent: { invalid: true },
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      status: 202,
+      compatibility: { checked: true, equivalent: false },
+    });
+  });
 });
