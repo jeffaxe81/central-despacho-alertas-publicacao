@@ -4,7 +4,7 @@ Esta aplicação é um **simulador independente de alertas urbanos**. Ela cria o
 
 ## Operação
 
-O painel disponibiliza seis categorias iniciais: iluminação pública municipal, segurança pública municipal, defesa civil, semáforos, câmeras e botão de perigo. Na tela **Simular alertas**, o botão **Disparar** gera uma ocorrência individual e registra o resultado. A tela **Histórico** preserva endereço, narrativa, payload, tentativas e retorno HTTP para auditoria.
+O painel disponibiliza seis categorias iniciais: iluminação pública, segurança pública municipal, defesa civil, semáforos, câmeras e botão de perigo. Na tela **Simular alertas**, o botão **Disparar** gera uma ocorrência individual e registra o resultado. A tela **Histórico** preserva endereço, narrativa, payload, tentativas e retorno HTTP para auditoria.
 
 | Tela                | Finalidade                                                                                       |
 | ------------------- | ------------------------------------------------------------------------------------------------ |
