@@ -18,7 +18,7 @@ Quando o mock interno recebe um payload de teste com `eventType: "alert.received
 4. compara a projeção canônica com o payload legado por igualdade profunda;
 5. devolve o resultado em `compatibility.checked` e `compatibility.equivalent`.
 
-Se o mock receber outro tipo de payload, o comportamento anterior é preservado e nenhuma comparação canônica é executada.
+Se o mock receber outro tipo de payload, o comportamento anterior é preservado e nenhuma comparação canônica é executada. Se a projeção canônica for inválida ou divergente, a validação shadow registra `equivalent: false`, mas não bloqueia a aceitação do mock nem altera o resultado legado `202`.
 
 ## Limites de segurança
 
@@ -27,18 +27,20 @@ Se o mock receber outro tipo de payload, o comportamento anterior é preservado 
 - nenhum banco, migration ou credencial é alterado;
 - o barramento e o outbox permanecem inalterados;
 - o dispatcher real continua usando o contrato legado;
+- divergências do shadow não interrompem o fluxo legado;
 - o contrato canônico continua restrito a eventos sintéticos (`axessimulated: true`).
 
 ## Consequências
 
 A solução passa a produzir evidência automatizada de compatibilidade antes de mover a geração canônica para uma camada anterior do fluxo. A comparação ocorre na fronteira do mock e, portanto, ainda não representa uma arquitetura `canonical-first` em runtime.
 
-Essa limitação é intencional: a MUE-003 valida equivalência com baixo risco, sem alterar o caminho de entrega real.
+Essa limitação é intencional: a MUE-003 valida equivalência com baixo risco, sem alterar o caminho de entrega real. Uma divergência serve como sinal de diagnóstico, não como mecanismo de bloqueio.
 
 ## Validação
 
 - teste unitário do mock com evento canônico explícito;
 - teste de integração do `dispatchConfiguredAlert()` em modo teste ALRT → AXE;
+- teste de divergência garantindo que erro da projeção não bloqueie o mock;
 - checagem de tipos com `tsc --noEmit`;
 - suíte automatizada completa;
 - build de produção.
