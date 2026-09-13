@@ -18,7 +18,7 @@ export function subscribeCanonicalShadow(subscriber: CanonicalShadowSubscriber) 
 
 export async function publishCanonicalShadowEvent(message: CanonicalShadowMessage) {
   const results = await Promise.allSettled(
-    [...subscribers].map(subscriber => Promise.resolve().then(() => subscriber(message)))
+    Array.from(subscribers).map(subscriber => Promise.resolve().then(() => subscriber(message)))
   );
 
   return results.reduce(
