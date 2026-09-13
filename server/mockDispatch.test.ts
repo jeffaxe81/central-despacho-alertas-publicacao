@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 const recordMockReceipt = vi.hoisted(() => vi.fn());
+const logEvent = vi.hoisted(() => vi.fn());
 
 vi.mock("./db", () => ({ recordMockReceipt }));
+vi.mock("./observability/logger", () => ({ logEvent }));
 
 import { deliverToInternalMock } from "./mockDispatch";
 
@@ -87,6 +89,18 @@ describe("endpoint mock interno", () => {
       status: 202,
       compatibility: { checked: true, equivalent: true },
     });
+
+    expect(logEvent).toHaveBeenCalledWith(
+      "info",
+      "eventbus.canonical_shadow_observed",
+      expect.objectContaining({
+        correlationId: canonicalEvent.correlationid,
+        eventId: canonicalEvent.id,
+        type: canonicalEvent.type,
+        simulated: true,
+        equivalent: true,
+      })
+    );
   });
 
   it("não reconstrói canônico a partir do payload legado quando canonicalEvent não é informado", async () => {
