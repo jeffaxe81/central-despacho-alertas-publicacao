@@ -1,4 +1,6 @@
 import type { Request, Response } from "express";
+import { isDeepStrictEqual } from "node:util";
+import { toAlrtAxeEvent } from "../shared/connectors/alrtAxeAdapter";
 import { sdk } from "./_core/sdk";
 import * as db from "./db";
 
@@ -6,14 +8,28 @@ export async function deliverToInternalMock(input: {
   userId: number;
   dispatchedAlertId: number;
   payloadJson: string;
+  canonicalEvent?: unknown;
 }) {
-  await db.recordMockReceipt(input);
+  await db.recordMockReceipt({
+    userId: input.userId,
+    dispatchedAlertId: input.dispatchedAlertId,
+    payloadJson: input.payloadJson,
+  });
+
+  const compatibility = input.canonicalEvent
+    ? {
+        checked: true as const,
+        equivalent: isDeepStrictEqual(toAlrtAxeEvent(input.canonicalEvent), JSON.parse(input.payloadJson)),
+      }
+    : undefined;
+
   return {
     ok: true as const,
     status: 202,
     summary: "Recebido pelo endpoint mock interno.",
     attempts: 1,
     failureReason: undefined as string | undefined,
+    ...(compatibility ? { compatibility } : {}),
   };
 }
 
