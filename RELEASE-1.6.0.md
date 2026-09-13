@@ -8,7 +8,8 @@
 - projeção pelo adaptador `toAlrtAxeEvent`;
 - comparação profunda entre a projeção canônica e o payload legado;
 - retorno de `compatibility.checked` e `compatibility.equivalent` como evidência de equivalência;
-- teste unitário do mock e teste de integração do dispatcher em modo teste;
+- comportamento não bloqueante: projeção inválida ou divergente retorna `equivalent: false` sem interromper o mock;
+- teste unitário do mock, teste de integração do dispatcher e teste de divergência shadow;
 - ADR-0004.
 
 ## Preservado
@@ -18,7 +19,8 @@
 - dispatcher de destino real;
 - barramento, outbox, webhook e SSE;
 - banco, migrations e credenciais;
-- comportamento do mock para payloads que não sejam `alert.received`.
+- comportamento do mock para payloads que não sejam `alert.received`;
+- resposta `202` do mock mesmo quando a validação shadow detecta incompatibilidade.
 
 ## Não realizado
 
@@ -30,7 +32,9 @@
 
 ## Evidência TDD
 
-A implementação foi conduzida em dois ciclos RED → GREEN. Primeiro, o mock foi obrigado por teste a retornar a evidência de compatibilidade. Depois, o fluxo `dispatchConfiguredAlert()` em modo teste ALRT → AXE foi obrigado por teste a produzir a mesma evidência. A checagem de tipos, a suíte completa e o build foram aprovados antes do fechamento documental.
+A implementação foi conduzida por ciclos RED → GREEN. Primeiro, o mock foi obrigado por teste a retornar a evidência de compatibilidade. Depois, o fluxo `dispatchConfiguredAlert()` em modo teste ALRT → AXE foi obrigado por teste a produzir a mesma evidência. Na revisão final, um terceiro RED comprovou que uma projeção inválida poderia bloquear o mock; a correção tornou o shadow não bloqueante e manteve a incompatibilidade observável por `equivalent: false`.
+
+A checagem de tipos, a suíte completa e o build de produção fazem parte do gate final do PR.
 
 ## Próxima microentrega recomendada
 
