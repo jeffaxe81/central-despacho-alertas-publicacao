@@ -167,6 +167,20 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("/react/") || id.includes("react-dom")) return "react";
+          if (id.includes("@tanstack") || id.includes("@trpc")) return "query";
+          if (id.includes("recharts")) return "charts";
+          if (id.includes("@radix-ui")) return "radix";
+          if (id.includes("lucide-react")) return "icons";
+          if (id.includes("framer-motion")) return "motion";
+          return "vendor";
+        },
+      },
+    },
   },
   server: {
     host: true,

@@ -92,6 +92,29 @@ export const alertTypes = mysqlTable(
   ]
 );
 
+export const integrationCredentials = mysqlTable(
+  "integration_credentials",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("user_id").notNull(),
+    tenantId: varchar("tenant_id", { length: 64 }).notNull().default(DEFAULT_TENANT_ID),
+    alertTypeId: int("alert_type_id").notNull(),
+    publicId: varchar("public_id", { length: 64 }).notNull(),
+    secretHash: varchar("secret_hash", { length: 255 }).notNull(),
+    status: mysqlEnum("status", ["active", "revoked"]).notNull().default("active"),
+    expiresAt: timestamp("expires_at"),
+    rotatedFromId: int("rotated_from_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at"),
+    lastUsedAt: timestamp("last_used_at"),
+  },
+  table => [
+    uniqueIndex("integration_credentials_public_id_unique").on(table.publicId),
+    index("integration_credentials_tenant_alert_idx").on(table.tenantId, table.alertTypeId),
+    index("integration_credentials_status_idx").on(table.status, table.expiresAt),
+  ]
+);
+
 export const generalSettings = mysqlTable(
   "general_settings",
   {
@@ -222,12 +245,43 @@ export const eventOutbox = mysqlTable(
     status: varchar("status", { length: 24 }).notNull().default("pending"),
     deliveredCount: int("delivered_count").notNull().default(0),
     failedCount: int("failed_count").notNull().default(0),
+    attempts: int("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    lockedUntil: timestamp("locked_until"),
+    lockedBy: varchar("locked_by", { length: 128 }),
+    lastError: text("last_error"),
+    deliveredAt: timestamp("delivered_at"),
+    deadLetteredAt: timestamp("dead_lettered_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
   table => [
     index("event_outbox_tenant_category_idx").on(table.tenantId, table.category),
     index("event_outbox_correlation_idx").on(table.correlationId),
+    index("event_outbox_replay_idx").on(table.status, table.nextAttemptAt, table.lockedUntil),
+  ]
+);
+
+export const eventOutboxDeliveries = mysqlTable(
+  "event_outbox_deliveries",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    outboxId: int("outbox_id").notNull(),
+    subscriptionId: int("subscription_id").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    attempts: int("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    lockedUntil: timestamp("locked_until"),
+    lockedBy: varchar("locked_by", { length: 128 }),
+    lastHttpStatus: int("last_http_status"),
+    lastError: text("last_error"),
+    deliveredAt: timestamp("delivered_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("event_outbox_delivery_unique").on(table.outboxId, table.subscriptionId),
+    index("event_outbox_delivery_replay_idx").on(table.status, table.nextAttemptAt, table.lockedUntil),
   ]
 );
 
@@ -260,10 +314,14 @@ export const eventSubscriptions = mysqlTable(
 
 export type AlertType = typeof alertTypes.$inferSelect;
 export type NewAlertType = typeof alertTypes.$inferInsert;
+export type IntegrationCredential = typeof integrationCredentials.$inferSelect;
+export type NewIntegrationCredential = typeof integrationCredentials.$inferInsert;
 export type DispatchedAlert = typeof dispatchedAlerts.$inferSelect;
 export type ReceivedWorkflowOccurrence = typeof receivedWorkflowOccurrences.$inferSelect;
 export type WorkflowProcessLog = typeof workflowProcessLogs.$inferSelect;
 export type EventOutboxRow = typeof eventOutbox.$inferSelect;
 export type NewEventOutboxRow = typeof eventOutbox.$inferInsert;
+export type EventOutboxDelivery = typeof eventOutboxDeliveries.$inferSelect;
+export type NewEventOutboxDelivery = typeof eventOutboxDeliveries.$inferInsert;
 export type EventSubscription = typeof eventSubscriptions.$inferSelect;
 export type NewEventSubscription = typeof eventSubscriptions.$inferInsert;

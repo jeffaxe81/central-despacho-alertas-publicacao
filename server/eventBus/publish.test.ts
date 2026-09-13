@@ -42,7 +42,7 @@ describe("publishEvent", () => {
     await publishEvent(baseEvent);
 
     expect(mockDb.recordOutboxEvent).toHaveBeenCalledWith(expect.objectContaining({ correlationId: "corr-1", eventId: "evt-1" }));
-    expect(mockDb.updateOutboxDelivery).toHaveBeenCalledWith(42, { status: "no_subscribers", deliveredCount: 0, failedCount: 0 });
+    expect(mockDb.updateOutboxDelivery).toHaveBeenCalledWith(42, { tenantId: "default", status: "no_subscribers", deliveredCount: 0, failedCount: 0 });
     expect(mockPostWithRetry).not.toHaveBeenCalled();
     expect(mockBroadcast).not.toHaveBeenCalled();
   });
@@ -57,7 +57,7 @@ describe("publishEvent", () => {
     await publishEvent(baseEvent);
 
     expect(mockPostWithRetry).toHaveBeenCalledWith(expect.objectContaining({ endpointUrl: "https://consumidor.example/hook", apiKey: "chave" }));
-    expect(mockDb.updateOutboxDelivery).toHaveBeenCalledWith(1, { status: "delivered", deliveredCount: 1, failedCount: 0 });
+    expect(mockDb.updateOutboxDelivery).toHaveBeenCalledWith(1, { tenantId: "default", status: "delivered", deliveredCount: 1, failedCount: 0 });
   });
 
   it("faz broadcast SSE para assinaturas do tipo 'sse' e marca 'failed' quando ninguém está conectado", async () => {
@@ -70,7 +70,7 @@ describe("publishEvent", () => {
     await publishEvent(baseEvent);
 
     expect(mockBroadcast).toHaveBeenCalledWith("sub-key-9", baseEvent.payload);
-    expect(mockDb.updateOutboxDelivery).toHaveBeenCalledWith(2, { status: "failed", deliveredCount: 0, failedCount: 0 });
+    expect(mockDb.updateOutboxDelivery).toHaveBeenCalledWith(2, { tenantId: "default", status: "failed", deliveredCount: 0, failedCount: 0 });
   });
 
   it("nunca lança: falha ao gravar no outbox é tratada e a função retorna normalmente", async () => {

@@ -27,7 +27,7 @@ export const workflowOccurrenceSchema = z.object({
 
 export type WorkflowOccurrence = z.infer<typeof workflowOccurrenceSchema>;
 
-type WorkflowStore = Pick<typeof db, "getAlertTypeByApiKey" | "getWorkflowOccurrenceByExternalId" | "createWorkflowOccurrence" | "createWorkflowProcessLog">;
+type WorkflowStore = Pick<typeof db, "authenticateInboundCredential" | "getWorkflowOccurrenceByExternalId" | "createWorkflowOccurrence" | "createWorkflowProcessLog">;
 
 function externalIdFrom(rawPayload: unknown) {
   return rawPayload && typeof rawPayload === "object" && "id" in rawPayload && typeof (rawPayload as { id?: unknown }).id === "string"
@@ -40,7 +40,8 @@ export async function receiveWorkflowOccurrence(apiKey: string | undefined, rawP
     await store.createWorkflowProcessLog({ externalId: externalIdFrom(rawPayload), outcome: "unauthorized", httpStatus: 401, reason: "API key ausente.", payloadJson: JSON.stringify(rawPayload) });
     return { status: 401 as const, body: { accepted: false, error: "API key ausente." } };
   }
-  const alertType = await store.getAlertTypeByApiKey(apiKey.trim());
+  const authenticated = await store.authenticateInboundCredential(apiKey.trim());
+  const alertType = authenticated?.alertType;
   if (!alertType) {
     await store.createWorkflowProcessLog({ externalId: externalIdFrom(rawPayload), outcome: "unauthorized", httpStatus: 401, reason: "API key inválida.", payloadJson: JSON.stringify(rawPayload) });
     return { status: 401 as const, body: { accepted: false, error: "API key inválida." } };
@@ -53,7 +54,7 @@ export async function receiveWorkflowOccurrence(apiKey: string | undefined, rawP
   }
 
   const payload = parsed.data;
-  const existing = await store.getWorkflowOccurrenceByExternalId(alertType.id, payload.id);
+  const existing = await store.getWorkflowOccurrenceByExternalId(alertType.id, alertType.tenantId, payload.id);
   if (existing) {
     await store.createWorkflowProcessLog({ userId: alertType.userId, alertTypeId: alertType.id, externalId: payload.id, outcome: "duplicate", httpStatus: 200, reason: "Ocorrência já recebida.", payloadJson: JSON.stringify(rawPayload) });
     return { status: 200 as const, body: { accepted: true, duplicate: true, receiptId: existing.id } };

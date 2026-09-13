@@ -59,7 +59,7 @@ export async function publishEvent(event: PublishableEvent): Promise<void> {
   }
 
   if (subscriptions.length === 0) {
-    await db.updateOutboxDelivery(outboxId, { status: "no_subscribers", deliveredCount: 0, failedCount: 0 });
+    await db.updateOutboxDelivery(outboxId, { tenantId: event.tenantId, status: "no_subscribers", deliveredCount: 0, failedCount: 0 });
     return;
   }
 
@@ -110,6 +110,7 @@ export async function publishEvent(event: PublishableEvent): Promise<void> {
   }
 
   await db.updateOutboxDelivery(outboxId, {
+    tenantId: event.tenantId,
     status: delivered === 0 ? "failed" : delivered < subscriptions.length ? "partial" : "delivered",
     deliveredCount: delivered,
     failedCount: failed,

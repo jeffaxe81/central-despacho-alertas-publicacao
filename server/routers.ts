@@ -258,6 +258,28 @@ export const appRouter = router({
       return db.updateAlertType(ctx.user.id, input.id, { autoEnabled: false, scheduleCronTaskUid: null });
     }),
   }),
+  credentials: router({
+    createInbound: protectedProcedure.input(z.object({
+      alertTypeId: z.number().int().positive(),
+      expiresAt: z.coerce.date().nullable().optional(),
+    })).mutation(({ ctx, input }) => db.createInboundCredentialForUser({
+      userId: ctx.user.id,
+      alertTypeId: input.alertTypeId,
+      expiresAt: input.expiresAt ?? null,
+    })),
+    rotateInbound: protectedProcedure.input(z.object({
+      alertTypeId: z.number().int().positive(),
+      credentialId: z.number().int().positive(),
+      expiresAt: z.coerce.date().nullable().optional(),
+    })).mutation(({ ctx, input }) => db.createInboundCredentialForUser({
+      userId: ctx.user.id,
+      alertTypeId: input.alertTypeId,
+      rotateCredentialId: input.credentialId,
+      expiresAt: input.expiresAt ?? null,
+    })),
+    revokeInbound: protectedProcedure.input(z.object({ credentialId: z.number().int().positive() }))
+      .mutation(({ ctx, input }) => db.revokeInboundCredential(ctx.user.id, input.credentialId)),
+  }),
   eventSubscriptions: router({
     list: protectedProcedure.query(({ ctx }) => db.listEventSubscriptions(ctx.user.id)),
     create: protectedProcedure.input(z.object({
