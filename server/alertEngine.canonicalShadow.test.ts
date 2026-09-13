@@ -80,4 +80,16 @@ describe("MUE-008 publicação shadow no dispatcher", () => {
 
     unsubscribe();
   });
+
+  it("mantém o despacho 202 quando um assinante shadow falha", async () => {
+    subscribeCanonicalShadow(() => {
+      throw new Error("falha isolada do assinante shadow");
+    });
+
+    await expect(dispatchConfiguredAlert(axeTestAlertType)).resolves.toMatchObject({
+      ok: true,
+      status: 202,
+      compatibility: { checked: true, equivalent: true },
+    });
+  });
 });
