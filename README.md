@@ -49,8 +49,10 @@ Na MUE-005, o fallback de reconstrução do evento canônico a partir do payload
 
 Na MUE-006, o caminho ALRT → AXE em modo teste passou a registrar uma observação estruturada do canônico explícito com o evento `eventbus.canonical_shadow_observed`. O registro contém identificadores de correlação e evento, tipo canônico, indicação de simulação e resultado da equivalência com o legado. Essa observabilidade é isolada no caminho shadow: não cria segunda publicação, não grava um segundo registro de outbox e não altera os payloads entregues por webhook ou SSE.
 
+Na MUE-007, foi criado o canal interno `server/eventBus/canonicalShadow.ts`, exclusivo do caminho de teste. O mock publica nele o mesmo objeto `canonicalEvent` explícito recebido do dispatcher, junto com o resultado `equivalent` já calculado. O canal opera somente em memória, suporta assinantes internos e isola falhas de assinantes; ele não grava outbox, não chama HTTP e não entrega eventos por webhook ou SSE.
+
 A entrega real permanece inalterada: fora do modo teste, o dispatcher continua usando o payload legado, sem publicação canônica adicional e sem mudança no HTTP, autenticação, retries, barramento ou persistência.
 
 ## Qualidade
 
-Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, contrato canônico v1, adaptador ALRT → AXE, shadow de compatibilidade no mock, geração canônica antes da fronteira do mock, exigência de canônico explícito para comparação shadow, observabilidade estruturada do canônico em modo teste, validação de cabeçalhos e payloads, tentativas de entrega, intervalos de automação e procedimentos de configuração.
+Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, contrato canônico v1, adaptador ALRT → AXE, shadow de compatibilidade no mock, geração canônica antes da fronteira do mock, exigência de canônico explícito para comparação shadow, observabilidade estruturada do canônico em modo teste, transporte pelo canal shadow interno, isolamento de falhas de assinantes, validação de cabeçalhos e payloads, tentativas de entrega, intervalos de automação e procedimentos de configuração.
