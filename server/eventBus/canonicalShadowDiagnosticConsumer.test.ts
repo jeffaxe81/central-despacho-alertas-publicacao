@@ -24,6 +24,23 @@ describe("MUE-012 consumidor diagnóstico interno shadow", () => {
     });
   });
 
+  it("classifica como healthy quando todas as entregas e equivalências são bem-sucedidas", async () => {
+    subscribeCanonicalShadow(() => undefined);
+
+    await publishCanonicalShadowEvent({ canonicalEvent: { id: "evt_healthy" }, equivalent: true });
+
+    expect(createCanonicalShadowDiagnosticReport({ isTestMode: true })).toEqual({
+      status: "healthy",
+      publications: 1,
+      delivered: 1,
+      failed: 0,
+      equivalent: 1,
+      divergent: 0,
+      deliverySuccessRate: 1,
+      equivalenceRate: 1,
+    });
+  });
+
   it("consolida o snapshot em um resumo operacional quando há falha ou divergência", async () => {
     subscribeCanonicalShadow(() => undefined);
     subscribeCanonicalShadow(message => {
