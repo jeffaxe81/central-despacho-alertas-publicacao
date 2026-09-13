@@ -43,8 +43,10 @@ O adaptador puro `shared/connectors/alrtAxeAdapter.ts` converte um evento canôn
 
 Na MUE-003, o modo teste ALRT → AXE passou a executar uma validação **shadow** no mock interno. O mock reconhece o envelope legado `alert.received`, reconstrói um evento canônico sintético equivalente, projeta-o novamente por `toAlrtAxeEvent` e compara a saída com o payload legado. O resultado é exposto por `compatibility.checked` e `compatibility.equivalent`.
 
-Essa comparação não publica eventos canônicos no barramento e não cria chamadas HTTP adicionais. Ela serve como evidência de compatibilidade antes de mover a geração canônica para uma etapa anterior do fluxo.
+Na MUE-004, o próprio `dispatchConfiguredAlert()` passou a construir o evento canônico antes da fronteira do mock quando o conector ALRT → AXE está em modo teste. O evento canônico e o payload legado são enviados em paralelo ao mock, e o adaptador confirma que a projeção canônica continua equivalente ao contrato legado.
+
+A entrega real permanece inalterada: fora do modo teste, o dispatcher continua usando o payload legado, sem publicação canônica adicional e sem mudança no HTTP, autenticação, retries, barramento ou persistência.
 
 ## Qualidade
 
-Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, contrato canônico v1, adaptador ALRT → AXE, shadow de compatibilidade no mock, validação de cabeçalhos e payloads, tentativas de entrega, intervalos de automação e procedimentos de configuração.
+Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, contrato canônico v1, adaptador ALRT → AXE, shadow de compatibilidade no mock, geração canônica antes da fronteira do mock, validação de cabeçalhos e payloads, tentativas de entrega, intervalos de automação e procedimentos de configuração.
