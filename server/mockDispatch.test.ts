@@ -88,4 +88,42 @@ describe("endpoint mock interno", () => {
       compatibility: { checked: true, equivalent: true },
     });
   });
+
+  it("não bloqueia o mock quando a projeção shadow é inválida", async () => {
+    recordMockReceipt.mockResolvedValue(undefined);
+    const payload = {
+      schemaVersion: "1.0",
+      eventId: "evt_SIM-20260912-AXE002",
+      eventType: "alert.received",
+      occurredAt: "2026-09-12T21:31:00.000Z",
+      source: { system: "despacho-alrt", environment: "homologacao" },
+      correlationId: "corr_22345678-1234-1234-1234-123456789abc",
+      idempotencyKey: "alrt:alert:SIM-20260912-AXE002:created:v1",
+      data: {
+        alert: {
+          externalId: "SIM-20260912-AXE002",
+          category: "Falha semafórica",
+          priority: "urgente",
+          description: "Prioridade propositalmente inválida para o shadow.",
+          address: "Avenida Central, nº 101",
+          latitude: -23.55052,
+          longitude: -46.633308,
+          reportedAt: "2026-09-12T21:31:00.000Z",
+          sourceStatus: "novo",
+        },
+      },
+    };
+
+    await expect(
+      deliverToInternalMock({
+        userId: 12,
+        dispatchedAlertId: 47,
+        payloadJson: JSON.stringify(payload),
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      status: 202,
+      compatibility: { checked: true, equivalent: false },
+    });
+  });
 });
