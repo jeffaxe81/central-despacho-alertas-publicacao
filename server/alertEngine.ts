@@ -507,9 +507,18 @@ export async function dispatchConfiguredAlert(
       ? (result as Awaited<ReturnType<typeof deliverToInternalMock>>).compatibility
       : undefined;
     if (canonicalEvent && compatibility?.checked) {
-      await publishCanonicalShadowEvent({
+      const publication = await publishCanonicalShadowEvent({
         canonicalEvent,
         equivalent: compatibility.equivalent,
+      });
+      logEvent(publication.failed > 0 ? "warn" : "info", "eventbus.canonical_shadow_published", {
+        correlationId: canonicalEvent.correlationid,
+        eventId: canonicalEvent.id,
+        type: canonicalEvent.type,
+        simulated: canonicalEvent.axessimulated,
+        equivalent: compatibility.equivalent,
+        delivered: publication.delivered,
+        failed: publication.failed,
       });
     }
     await db.updateDispatchedAlert(alertId, {
