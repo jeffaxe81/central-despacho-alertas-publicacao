@@ -69,6 +69,14 @@ function canonicalShadowFromLegacyAxe(payload: unknown) {
   };
 }
 
+function compareCanonicalShadow(canonicalEvent: unknown, legacyPayload: unknown) {
+  try {
+    return isDeepStrictEqual(toAlrtAxeEvent(canonicalEvent), legacyPayload);
+  } catch {
+    return false;
+  }
+}
+
 export async function deliverToInternalMock(input: {
   userId: number;
   dispatchedAlertId: number;
@@ -86,7 +94,7 @@ export async function deliverToInternalMock(input: {
   const compatibility = canonicalEvent
     ? {
         checked: true as const,
-        equivalent: isDeepStrictEqual(toAlrtAxeEvent(canonicalEvent), legacyPayload),
+        equivalent: compareCanonicalShadow(canonicalEvent, legacyPayload),
       }
     : undefined;
 
