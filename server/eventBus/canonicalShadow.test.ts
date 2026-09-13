@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  getCanonicalShadowDiagnosticSnapshot,
   publishCanonicalShadowEvent,
   resetCanonicalShadowSubscribersForTest,
   subscribeCanonicalShadow,
@@ -49,5 +50,48 @@ describe("canal shadow canônico interno", () => {
     ).resolves.toEqual({ delivered: 1, failed: 1 });
 
     expect(received).toEqual([canonicalEvent]);
+  });
+
+  it("consolida publicações, entregas, falhas e equivalências em snapshot diagnóstico", async () => {
+    subscribeCanonicalShadow(() => undefined);
+    subscribeCanonicalShadow(message => {
+      if (!message.equivalent) throw new Error("falha shadow esperada");
+    });
+
+    await publishCanonicalShadowEvent({
+      canonicalEvent: { id: "evt_equivalent" },
+      equivalent: true,
+    });
+    await publishCanonicalShadowEvent({
+      canonicalEvent: { id: "evt_divergent" },
+      equivalent: false,
+    });
+
+    expect(getCanonicalShadowDiagnosticSnapshot()).toEqual({
+      publications: 2,
+      delivered: 3,
+      failed: 1,
+      equivalent: 1,
+      divergent: 1,
+    });
+  });
+
+  it("zera o snapshot diagnóstico junto com o reset do canal de teste", async () => {
+    await publishCanonicalShadowEvent({
+      canonicalEvent: { id: "evt_before_reset" },
+      equivalent: true,
+    });
+
+    expect(getCanonicalShadowDiagnosticSnapshot().publications).toBe(1);
+
+    resetCanonicalShadowSubscribersForTest();
+
+    expect(getCanonicalShadowDiagnosticSnapshot()).toEqual({
+      publications: 0,
+      delivered: 0,
+      failed: 0,
+      equivalent: 0,
+      divergent: 0,
+    });
   });
 });
