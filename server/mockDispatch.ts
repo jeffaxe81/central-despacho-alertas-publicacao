@@ -3,7 +3,6 @@ import { isDeepStrictEqual } from "node:util";
 import { toAlrtAxeEvent } from "../shared/connectors/alrtAxeAdapter";
 import { sdk } from "./_core/sdk";
 import * as db from "./db";
-import { publishCanonicalShadowEvent } from "./eventBus/canonicalShadow";
 import { logEvent } from "./observability/logger";
 
 function compareCanonicalShadow(canonicalEvent: unknown, legacyPayload: unknown) {
@@ -50,10 +49,6 @@ export async function deliverToInternalMock(input: {
 
   if (input.canonicalEvent && compatibility) {
     logCanonicalShadowObservation(input.canonicalEvent, compatibility.equivalent);
-    await publishCanonicalShadowEvent({
-      canonicalEvent: input.canonicalEvent,
-      equivalent: compatibility.equivalent,
-    });
   }
 
   return {
