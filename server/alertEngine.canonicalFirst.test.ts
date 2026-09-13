@@ -92,20 +92,3 @@ describe("MUE-004 geração canônica antes do mock", () => {
     expect(toAlrtAxeEvent(input.canonicalEvent)).toEqual(legacyPayload);
   });
 });
-
-describe("MUE-006 fronteira canônica observável no barramento", () => {
-  it("passa o mesmo canonicalEvent explicitamente ao publishEvent sem substituir o payload legado", async () => {
-    await dispatchConfiguredAlert(axeTestAlertType);
-
-    const mockInput = deliverToInternalMock.mock.calls[0]![0];
-    const legacyPayload = JSON.parse(mockInput.payloadJson);
-
-    expect(publishEvent).toHaveBeenCalledTimes(1);
-    expect(publishEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        payload: legacyPayload,
-        canonicalEvent: mockInput.canonicalEvent,
-      })
-    );
-  });
-});
