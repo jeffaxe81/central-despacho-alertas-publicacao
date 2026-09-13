@@ -21,7 +21,7 @@ describe("endpoint mock interno", () => {
     });
   });
 
-  it("compara o evento canônico com o payload legado no modo shadow", async () => {
+  it("compara o evento canônico explícito com o payload legado no modo shadow", async () => {
     recordMockReceipt.mockResolvedValue(undefined);
     const payload = {
       schemaVersion: "1.0",
@@ -89,7 +89,7 @@ describe("endpoint mock interno", () => {
     });
   });
 
-  it("não bloqueia o mock quando a projeção shadow é inválida", async () => {
+  it("não reconstrói canônico a partir do payload legado quando canonicalEvent não é informado", async () => {
     recordMockReceipt.mockResolvedValue(undefined);
     const payload = {
       schemaVersion: "1.0",
@@ -103,8 +103,8 @@ describe("endpoint mock interno", () => {
         alert: {
           externalId: "SIM-20260912-AXE002",
           category: "Falha semafórica",
-          priority: "urgente",
-          description: "Prioridade propositalmente inválida para o shadow.",
+          priority: "alta",
+          description: "Payload legado sem canônico explícito.",
           address: "Avenida Central, nº 101",
           latitude: -23.55052,
           longitude: -46.633308,
@@ -114,11 +114,47 @@ describe("endpoint mock interno", () => {
       },
     };
 
+    const result = await deliverToInternalMock({
+      userId: 12,
+      dispatchedAlertId: 47,
+      payloadJson: JSON.stringify(payload),
+    });
+
+    expect(result).toMatchObject({ ok: true, status: 202 });
+    expect(result).not.toHaveProperty("compatibility");
+  });
+
+  it("não bloqueia o mock quando o canonicalEvent explícito é inválido", async () => {
+    recordMockReceipt.mockResolvedValue(undefined);
+    const payload = {
+      schemaVersion: "1.0",
+      eventId: "evt_SIM-20260912-AXE003",
+      eventType: "alert.received",
+      occurredAt: "2026-09-12T21:32:00.000Z",
+      source: { system: "despacho-alrt", environment: "homologacao" },
+      correlationId: "corr_32345678-1234-1234-1234-123456789abc",
+      idempotencyKey: "alrt:alert:SIM-20260912-AXE003:created:v1",
+      data: {
+        alert: {
+          externalId: "SIM-20260912-AXE003",
+          category: "Falha semafórica",
+          priority: "alta",
+          description: "Canônico explícito inválido para teste não bloqueante.",
+          address: "Avenida Central, nº 102",
+          latitude: -23.55052,
+          longitude: -46.633308,
+          reportedAt: "2026-09-12T21:32:00.000Z",
+          sourceStatus: "novo",
+        },
+      },
+    };
+
     await expect(
       deliverToInternalMock({
         userId: 12,
-        dispatchedAlertId: 47,
+        dispatchedAlertId: 48,
         payloadJson: JSON.stringify(payload),
+        canonicalEvent: { invalid: true },
       })
     ).resolves.toMatchObject({
       ok: true,

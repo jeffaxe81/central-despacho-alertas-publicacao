@@ -41,12 +41,14 @@ O contrato canônico permanece restrito a eventos sintéticos (`axessimulated: t
 
 O adaptador puro `shared/connectors/alrtAxeAdapter.ts` converte um evento canônico para o envelope ALRT → AXE homologado. Ele valida os dados necessários, rejeita entradas incompletas e não realiza chamadas de rede. O fluxo de entrega real ainda não depende automaticamente desse adaptador.
 
-Na MUE-003, o modo teste ALRT → AXE passou a executar uma validação **shadow** no mock interno. O mock reconhece o envelope legado `alert.received`, reconstrói um evento canônico sintético equivalente, projeta-o novamente por `toAlrtAxeEvent` e compara a saída com o payload legado. O resultado é exposto por `compatibility.checked` e `compatibility.equivalent`.
+Na MUE-003, o modo teste ALRT → AXE passou a executar uma validação **shadow** no mock interno. O mock reconhecia o envelope legado `alert.received`, reconstruía um evento canônico sintético equivalente, projetava-o novamente por `toAlrtAxeEvent` e comparava a saída com o payload legado.
 
 Na MUE-004, o próprio `dispatchConfiguredAlert()` passou a construir o evento canônico antes da fronteira do mock quando o conector ALRT → AXE está em modo teste. O evento canônico e o payload legado são enviados em paralelo ao mock, e o adaptador confirma que a projeção canônica continua equivalente ao contrato legado.
+
+Na MUE-005, o fallback de reconstrução do evento canônico a partir do payload legado foi removido do mock. A comparação shadow agora ocorre somente quando `canonicalEvent` é recebido explicitamente do dispatcher. Se o mock receber apenas o payload legado, continua respondendo `202`, mas não expõe `compatibility`. Se receber um canônico explícito inválido, mantém o comportamento não bloqueante e retorna `compatibility.equivalent: false`.
 
 A entrega real permanece inalterada: fora do modo teste, o dispatcher continua usando o payload legado, sem publicação canônica adicional e sem mudança no HTTP, autenticação, retries, barramento ou persistência.
 
 ## Qualidade
 
-Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, contrato canônico v1, adaptador ALRT → AXE, shadow de compatibilidade no mock, geração canônica antes da fronteira do mock, validação de cabeçalhos e payloads, tentativas de entrega, intervalos de automação e procedimentos de configuração.
+Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, contrato canônico v1, adaptador ALRT → AXE, shadow de compatibilidade no mock, geração canônica antes da fronteira do mock, exigência de canônico explícito para comparação shadow, validação de cabeçalhos e payloads, tentativas de entrega, intervalos de automação e procedimentos de configuração.

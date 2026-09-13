@@ -4,71 +4,6 @@ import { toAlrtAxeEvent } from "../shared/connectors/alrtAxeAdapter";
 import { sdk } from "./_core/sdk";
 import * as db from "./db";
 
-function canonicalShadowFromLegacyAxe(payload: unknown) {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return undefined;
-  const envelope = payload as Record<string, unknown>;
-  if (envelope.eventType !== "alert.received") return undefined;
-  const data = envelope.data;
-  if (!data || typeof data !== "object" || Array.isArray(data)) return undefined;
-  const alert = (data as Record<string, unknown>).alert;
-  if (!alert || typeof alert !== "object" || Array.isArray(alert)) return undefined;
-  const axeAlert = alert as Record<string, unknown>;
-
-  const eventId = envelope.eventId;
-  const occurredAt = envelope.occurredAt;
-  const correlationId = envelope.correlationId;
-  const idempotencyKey = envelope.idempotencyKey;
-  const externalId = axeAlert.externalId;
-  const category = axeAlert.category;
-  const severity = axeAlert.priority;
-  const description = axeAlert.description;
-  const address = axeAlert.address;
-  const latitude = axeAlert.latitude;
-  const longitude = axeAlert.longitude;
-
-  if (
-    typeof eventId !== "string" ||
-    typeof occurredAt !== "string" ||
-    typeof correlationId !== "string" ||
-    typeof idempotencyKey !== "string" ||
-    typeof externalId !== "string" ||
-    typeof category !== "string" ||
-    typeof severity !== "string" ||
-    typeof description !== "string" ||
-    typeof address !== "string" ||
-    typeof latitude !== "number" ||
-    typeof longitude !== "number"
-  ) {
-    return undefined;
-  }
-
-  return {
-    specversion: "1.0",
-    id: eventId,
-    source: "urn:axesistemas:motor-eventos:mock",
-    type: "com.axesistemas.alerta.urbano.recebido.v1",
-    subject: `alerta/${externalId}`,
-    time: occurredAt,
-    datacontenttype: "application/json",
-    dataschema: "urn:axesistemas:schema:alerta:urbano:1.0.0",
-    correlationid: correlationId,
-    idempotencykey: idempotencyKey,
-    axesrunid: `mock:${eventId}`,
-    axesscenarioid: "shadow-alrt-axe",
-    axesscenarioversion: "1.0.0",
-    axesseed: externalId,
-    axessequence: 1,
-    axessimulated: true,
-    data: {
-      assetId: externalId,
-      category,
-      severity,
-      description,
-      location: { address, latitude, longitude },
-    },
-  };
-}
-
 function compareCanonicalShadow(canonicalEvent: unknown, legacyPayload: unknown) {
   try {
     return isDeepStrictEqual(toAlrtAxeEvent(canonicalEvent), legacyPayload);
@@ -90,11 +25,10 @@ export async function deliverToInternalMock(input: {
   });
 
   const legacyPayload: unknown = JSON.parse(input.payloadJson);
-  const canonicalEvent = input.canonicalEvent ?? canonicalShadowFromLegacyAxe(legacyPayload);
-  const compatibility = canonicalEvent
+  const compatibility = input.canonicalEvent
     ? {
         checked: true as const,
-        equivalent: compareCanonicalShadow(canonicalEvent, legacyPayload),
+        equivalent: compareCanonicalShadow(input.canonicalEvent, legacyPayload),
       }
     : undefined;
 
