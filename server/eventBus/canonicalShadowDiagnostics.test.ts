@@ -20,6 +20,7 @@ describe("MUE-011 fronteira interna de diagnóstico shadow", () => {
     });
 
     const snapshot = readCanonicalShadowDiagnosticSnapshot({ isTestMode: true });
+    const secondSnapshot = readCanonicalShadowDiagnosticSnapshot({ isTestMode: true });
 
     expect(snapshot).toEqual({
       publications: 1,
@@ -28,6 +29,7 @@ describe("MUE-011 fronteira interna de diagnóstico shadow", () => {
       equivalent: 1,
       divergent: 0,
     });
+    expect(snapshot).not.toBe(secondSnapshot);
 
     (snapshot as { publications: number }).publications = 999;
 
