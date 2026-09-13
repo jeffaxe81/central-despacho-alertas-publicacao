@@ -92,6 +92,41 @@ const AXE_PRIORITY: Record<Severity, "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"> = {
   critica: "CRITICAL",
 };
 
+export function createCanonicalAlrtAxeEvent(
+  alertType: Pick<AlertType, "name">,
+  occurrence: GeneratedOccurrence
+) {
+  return {
+    specversion: "1.0" as const,
+    id: `evt_${occurrence.eventId}`,
+    source: "urn:axesistemas:motor-eventos:alertas",
+    type: "com.axesistemas.alerta.urbano.recebido.v1",
+    subject: `alerta/${occurrence.eventId}`,
+    time: occurrence.timestamp,
+    datacontenttype: "application/json" as const,
+    dataschema: "urn:axesistemas:schema:alerta:urbano:1.0.0",
+    correlationid: occurrence.correlationId,
+    idempotencykey: `alrt:alert:${occurrence.eventId}:created:v1`,
+    axesrunid: `run:${occurrence.eventId}`,
+    axesscenarioid: "alrt-axe-shadow",
+    axesscenarioversion: "1.0.0",
+    axesseed: occurrence.seed,
+    axessequence: 1,
+    axessimulated: true as const,
+    data: {
+      assetId: occurrence.eventId,
+      category: alertType.name,
+      severity: occurrence.severity,
+      description: occurrence.narrative,
+      location: {
+        address: occurrence.address,
+        latitude: occurrence.latitude,
+        longitude: occurrence.longitude,
+      },
+    },
+  };
+}
+
 function choose<T>(values: readonly T[], random: () => number): T {
   return values[Math.floor(random() * values.length)] as T;
 }
@@ -385,6 +420,9 @@ export async function dispatchConfiguredAlert(
       ? { location: { ...nestedLocation, latitude: occurrence.latitude, longitude: occurrence.longitude } }
       : {}),
   };
+  const canonicalEvent = alertType.isTestMode && isAlrtAxeEnvelope
+    ? createCanonicalAlrtAxeEvent(alertType, occurrence)
+    : undefined;
   const payloadJson = JSON.stringify(payload);
   const alertId = await db.createDispatchedAlert({
     userId: alertType.userId,
@@ -443,7 +481,12 @@ export async function dispatchConfiguredAlert(
       isTestMode: alertType.isTestMode,
     });
     const result = alertType.isTestMode
-      ? await deliverToInternalMock({ userId: alertType.userId, dispatchedAlertId: alertId, payloadJson })
+      ? await deliverToInternalMock({
+          userId: alertType.userId,
+          dispatchedAlertId: alertId,
+          payloadJson,
+          ...(canonicalEvent ? { canonicalEvent } : {}),
+        })
       : await postWithRetry({
           endpointUrl: alertType.endpointUrl,
           headers: parseHeaders(alertType.headersJson),
