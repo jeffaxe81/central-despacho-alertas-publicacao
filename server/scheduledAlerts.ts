@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { sdk } from "./_core/sdk";
 import { dispatchConfiguredAlert } from "./alertEngine";
-import { getAlertTypeByScheduleTask, getGeneralSettings } from "./db";
+import { getAlertTypeByScheduleTask, getGeneralSettings, getUserTenantId } from "./db";
 
 export async function scheduledAlertDispatchHandler(req: Request, res: Response) {
   try {
@@ -9,7 +9,8 @@ export async function scheduledAlertDispatchHandler(req: Request, res: Response)
     if (!user.isCron || !user.taskUid) {
       return res.status(403).json({ error: "Acesso exclusivo para agendamentos autenticados." });
     }
-    const alertType = await getAlertTypeByScheduleTask(user.taskUid);
+    const tenantId = await getUserTenantId(user.id);
+    const alertType = await getAlertTypeByScheduleTask(user.taskUid, tenantId);
     if (!alertType || !alertType.autoEnabled) {
       return res.json({ ok: true, skipped: "Agendamento órfão ou desativado." });
     }

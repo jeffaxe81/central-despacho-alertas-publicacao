@@ -20,9 +20,9 @@ const validPayload = {
   source: { system: "central-despacho-alertas", mode: "test", correlationId: "EXT-000001" },
 };
 
-function store(overrides: Partial<Record<"getAlertTypeByApiKey" | "getWorkflowOccurrenceByExternalId" | "createWorkflowOccurrence", ReturnType<typeof vi.fn>>> = {}) {
+function store(overrides: Partial<Record<"authenticateInboundCredential" | "getWorkflowOccurrenceByExternalId" | "createWorkflowOccurrence", ReturnType<typeof vi.fn>>> = {}) {
   return {
-    getAlertTypeByApiKey: vi.fn().mockResolvedValue({ id: 9, userId: 4 }),
+    authenticateInboundCredential: vi.fn().mockResolvedValue({ alertType: { id: 9, userId: 4, tenantId: "tenant-test" } }),
     getWorkflowOccurrenceByExternalId: vi.fn().mockResolvedValue(undefined),
     createWorkflowOccurrence: vi.fn().mockResolvedValue(91),
     createWorkflowProcessLog: vi.fn().mockResolvedValue(101),

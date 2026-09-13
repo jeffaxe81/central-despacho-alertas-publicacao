@@ -1,6 +1,8 @@
 import { nanoid } from "nanoid";
 import type { AlertType } from "../drizzle/schema";
 import { createHash, createHmac } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import * as db from "./db";
 import { deliverToInternalMock } from "./mockDispatch";
 import { logEvent } from "./observability/logger";
@@ -198,6 +200,9 @@ export function parseHeaders(headersJson: string): Record<string, string> {
   }
   const headers: Record<string, string> = {};
   for (const [key, value] of Object.entries(candidate)) {
+    if (!/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/.test(key)) {
+      throw new Error(`O nome do cabeçalho ${key} é inválido.`);
+    }
     if (typeof value !== "string") {
       throw new Error(`O valor do cabeçalho ${key} deve ser texto.`);
     }
@@ -282,7 +287,25 @@ export function intervalToCron(intervalMinutes: number): string {
   throw new Error("Escolha um intervalo compatível: 5, 10, 15, 20, 30, 60, 120, 180, 360, 720 ou 1440 minutos.");
 }
 
-function assertPublicHttpUrl(endpointUrl: string, allowPrivateEndpointForTest = false) {
+function isPrivateIpv4(address: string) {
+  const octets = address.split(".").map(Number);
+  if (octets.length !== 4 || octets.some(octet => !Number.isInteger(octet) || octet < 0 || octet > 255)) return true;
+  const [first, second] = octets;
+  return first === 0 || first === 10 || first === 127 || (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168) ||
+    (first === 100 && second >= 64 && second <= 127) || (first === 198 && (second === 18 || second === 19));
+}
+
+function isPrivateIp(address: string) {
+  if (isIP(address) === 4) return isPrivateIpv4(address);
+  const normalized = address.toLowerCase();
+  return normalized === "::" || normalized === "::1" || normalized.startsWith("fc") ||
+    normalized.startsWith("fd") || normalized.startsWith("fe8") || normalized.startsWith("fe9") ||
+    normalized.startsWith("fea") || normalized.startsWith("feb") || normalized.startsWith("::ffff:10.") ||
+    normalized.startsWith("::ffff:127.") || normalized.startsWith("::ffff:192.168.");
+}
+
+async function assertPublicHttpUrl(endpointUrl: string, allowPrivateEndpointForTest = false) {
   if (endpointUrl.startsWith("mock://")) return;
   let url: URL;
   try {
@@ -293,17 +316,21 @@ function assertPublicHttpUrl(endpointUrl: string, allowPrivateEndpointForTest = 
   if (!["http:", "https:"].includes(url.protocol)) {
     throw new Error("O endpoint deve utilizar HTTP, HTTPS ou o mock interno.");
   }
-  const host = url.hostname.toLowerCase();
-  const privateHost =
-    host === "localhost" ||
-    host === "0.0.0.0" ||
-    host === "::1" ||
-    host.startsWith("127.") ||
-    host.startsWith("10.") ||
-    host.startsWith("192.168.") ||
-    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
-  if (privateHost && !allowPrivateEndpointForTest) {
-    throw new Error("Para segurança, o simulador aceita apenas endpoints públicos acessíveis por HTTPS/HTTP.");
+  if (process.env.NODE_ENV === "production" && url.protocol !== "https:") {
+    throw new Error("Em produção, o endpoint deve utilizar HTTPS.");
+  }
+  if (allowPrivateEndpointForTest || process.env.NODE_ENV === "test") return;
+  if (url.username || url.password || url.port === "0") {
+    throw new Error("O endpoint contém componentes não permitidos.");
+  }
+  let addresses: Array<{ address: string }>;
+  try {
+    addresses = await lookup(url.hostname, { all: true, verbatim: true });
+  } catch {
+    throw new Error("Não foi possível resolver o host do endpoint.");
+  }
+  if (!addresses.length || addresses.some(result => isPrivateIp(result.address))) {
+    throw new Error("Por segurança, o endpoint não pode resolver para uma rede privada ou reservada.");
   }
 }
 
@@ -326,7 +353,7 @@ export async function postWithRetry(input: {
   retryDelayMilliseconds?: (attempt: number) => number;
   payload: Record<string, unknown>;
 }): Promise<{ ok: boolean; status: number | null; summary: string; attempts: number; failureReason?: string }> {
-  assertPublicHttpUrl(input.endpointUrl, input.allowPrivateEndpointForTest);
+  await assertPublicHttpUrl(input.endpointUrl, input.allowPrivateEndpointForTest);
   const headers: Record<string, string> = { "content-type": "application/json", ...input.headers };
   const hasAuthorization = hasHeader(headers, "authorization");
   if (input.authToken && !hasAuthorization) headers.authorization = `Bearer ${input.authToken}`;
@@ -522,6 +549,7 @@ export async function dispatchConfiguredAlert(
       });
     }
     await db.updateDispatchedAlert(alertId, {
+      tenantId: alertType.tenantId,
       status: result.ok ? "sucesso" : "falha",
       responseHttpStatus: result.status,
       responseSummary: result.summary || null,
@@ -542,6 +570,7 @@ export async function dispatchConfiguredAlert(
   } catch (error) {
     const failureReason = error instanceof Error ? error.message : "Erro desconhecido ao preparar despacho.";
     await db.updateDispatchedAlert(alertId, {
+      tenantId: alertType.tenantId,
       status: "falha",
       responseHttpStatus: null,
       responseSummary: null,

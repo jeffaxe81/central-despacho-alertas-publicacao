@@ -12,6 +12,7 @@ import { staticMapHandler } from "../staticMap";
 import { registerWorkflowRoutes } from "../workflowRoutes";
 import { registerEventBusRoutes } from "../eventBus/sseRoute";
 import { serveStatic, setupVite } from "./vite";
+import { createRateLimiter, requireHttpsInProduction, requestKey, securityHeaders } from "./security";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -35,14 +36,29 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.disable("x-powered-by");
+  app.set("trust proxy", 1);
+  app.use(securityHeaders);
+  app.use(requireHttpsInProduction);
+  app.use(express.json({ limit: "256kb" }));
+  app.use(express.urlencoded({ limit: "256kb", extended: true }));
+  const integrationRateLimit = createRateLimiter({
+    windowMs: 60_000,
+    max: 120,
+    key: requestKey,
+    message: "Limite de integração excedido. Tente novamente mais tarde.",
+  });
+  const streamRateLimit = createRateLimiter({
+    windowMs: 60_000,
+    max: 20,
+    key: requestKey,
+    message: "Limite de conexões SSE excedido.",
+  });
   registerStorageProxy(app);
   app.get("/api/maps/static", staticMapHandler);
-  app.post("/api/mock/dispatch", mockDispatchHandler);
-  registerWorkflowRoutes(app);
-  registerEventBusRoutes(app);
+  app.post("/api/mock/dispatch", integrationRateLimit, mockDispatchHandler);
+  registerWorkflowRoutes(app, undefined, integrationRateLimit);
+  registerEventBusRoutes(app, undefined, streamRateLimit);
   app.post("/api/scheduled/dispatch-alert", scheduledAlertDispatchHandler);
   // tRPC API
   app.use(

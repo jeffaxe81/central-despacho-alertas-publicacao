@@ -14,7 +14,7 @@ const validPayload = {
 function workflowStore() {
   let existing: { id: number } | undefined;
   return {
-    getAlertTypeByApiKey: vi.fn().mockImplementation(async (key: string) => key === "api-key-integration" ? { id: 5, userId: 9 } : undefined),
+    authenticateInboundCredential: vi.fn().mockImplementation(async (key: string) => key === "api-key-integration" ? { alertType: { id: 5, userId: 9, tenantId: "tenant-test" } } : undefined),
     getWorkflowOccurrenceByExternalId: vi.fn().mockImplementation(async () => existing),
     createWorkflowOccurrence: vi.fn().mockImplementation(async () => { existing = { id: 42 }; return 42; }),
     createWorkflowProcessLog: vi.fn().mockResolvedValue(1),

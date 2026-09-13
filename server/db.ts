@@ -6,6 +6,7 @@ import {
   dispatchedAlerts,
   eventOutbox,
   eventSubscriptions,
+  integrationCredentials,
   generalSettings,
   InsertUser,
   mockReceipts,
@@ -18,6 +19,8 @@ import {
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { DEFAULT_TENANT_ID } from "../shared/tenant";
+import { assertTenantAccess } from "./tenantScope";
+import { createInboundCredential, hashInboundSecret, parseInboundCredential, verifyInboundSecret } from "./inboundCredentials";
 import {
   DEFAULT_EVENT_SETTINGS,
   DEFAULT_PAYLOAD_TEMPLATE,
@@ -191,23 +194,24 @@ export async function ensureDefaultAlertTypes(userId: number) {
       .values(values)
       .onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
   }
-  return db.select().from(alertTypes).where(eq(alertTypes.userId, userId));
+  return db.select().from(alertTypes).where(and(eq(alertTypes.userId, userId), eq(alertTypes.tenantId, tenantId)));
 }
 
 export async function listAlertTypes(userId: number) {
   await ensureDefaultAlertTypes(userId);
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(alertTypes).where(eq(alertTypes.userId, userId));
+  const tenantId = await getUserTenantId(userId);
+  return db.select().from(alertTypes).where(and(eq(alertTypes.userId, userId), eq(alertTypes.tenantId, tenantId)));
 }
 
 export async function getGeneralSettings(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
-  const records = await db.select().from(generalSettings).where(eq(generalSettings.userId, userId)).limit(1);
+  const tenantId = await getUserTenantId(userId);
+  const records = await db.select().from(generalSettings).where(and(eq(generalSettings.userId, userId), eq(generalSettings.tenantId, tenantId))).limit(1);
   if (records[0]) return records[0];
 
-  const tenantId = await getUserTenantId(userId);
   await db.insert(generalSettings).values({
     userId,
     tenantId,
@@ -215,7 +219,7 @@ export async function getGeneralSettings(userId: number) {
     defaultLongitude: DEFAULT_SIMULATION_COORDINATES.longitude,
   }).onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
 
-  const created = await db.select().from(generalSettings).where(eq(generalSettings.userId, userId)).limit(1);
+  const created = await db.select().from(generalSettings).where(and(eq(generalSettings.userId, userId), eq(generalSettings.tenantId, tenantId))).limit(1);
   if (!created[0]) throw new Error("Não foi possível inicializar as configurações gerais.");
   return created[0];
 }
@@ -233,11 +237,12 @@ export async function updateGeneralSettings(userId: number, input: { defaultLati
 export async function resetGeneratedOperationalData(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
+  const tenantId = await getUserTenantId(userId);
   return db.transaction(async tx => {
-    const workflowLogs = await tx.delete(workflowProcessLogs).where(eq(workflowProcessLogs.userId, userId));
-    const workflowOccurrences = await tx.delete(receivedWorkflowOccurrences).where(eq(receivedWorkflowOccurrences.userId, userId));
-    const receipts = await tx.delete(mockReceipts).where(eq(mockReceipts.userId, userId));
-    const dispatched = await tx.delete(dispatchedAlerts).where(eq(dispatchedAlerts.userId, userId));
+    const workflowLogs = await tx.delete(workflowProcessLogs).where(and(eq(workflowProcessLogs.userId, userId), eq(workflowProcessLogs.tenantId, tenantId)));
+    const workflowOccurrences = await tx.delete(receivedWorkflowOccurrences).where(and(eq(receivedWorkflowOccurrences.userId, userId), eq(receivedWorkflowOccurrences.tenantId, tenantId)));
+    const receipts = await tx.delete(mockReceipts).where(and(eq(mockReceipts.userId, userId), eq(mockReceipts.tenantId, tenantId)));
+    const dispatched = await tx.delete(dispatchedAlerts).where(and(eq(dispatchedAlerts.userId, userId), eq(dispatchedAlerts.tenantId, tenantId)));
     return {
       workflowLogs: Number(workflowLogs[0].affectedRows ?? 0),
       workflowOccurrences: Number(workflowOccurrences[0].affectedRows ?? 0),
@@ -250,39 +255,33 @@ export async function resetGeneratedOperationalData(userId: number) {
 export async function getAlertTypeForUser(userId: number, alertTypeId: number) {
   const db = await getDb();
   if (!db) return undefined;
+  const tenantId = await getUserTenantId(userId);
   const records = await db
     .select()
     .from(alertTypes)
-    .where(and(eq(alertTypes.id, alertTypeId), eq(alertTypes.userId, userId)))
+    .where(and(eq(alertTypes.id, alertTypeId), eq(alertTypes.userId, userId), eq(alertTypes.tenantId, tenantId)))
     .limit(1);
-  return records[0];
+  return records[0] ? assertTenantAccess(records[0], tenantId) : undefined;
 }
 
-export async function getAlertTypeByScheduleTask(taskUid: string) {
+export async function getAlertTypeByScheduleTask(taskUid: string, tenantId: string) {
   const db = await getDb();
   if (!db) return undefined;
   const records = await db
     .select()
     .from(alertTypes)
-    .where(eq(alertTypes.scheduleCronTaskUid, taskUid))
+    .where(and(eq(alertTypes.scheduleCronTaskUid, taskUid), eq(alertTypes.tenantId, tenantId)))
     .limit(1);
   return records[0];
 }
 
-export async function getAlertTypeByApiKey(apiKey: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const records = await db.select().from(alertTypes).where(eq(alertTypes.apiKey, apiKey)).limit(1);
-  return records[0];
-}
-
-export async function getWorkflowOccurrenceByExternalId(alertTypeId: number, externalId: string) {
+export async function getWorkflowOccurrenceByExternalId(alertTypeId: number, tenantId: string, externalId: string) {
   const db = await getDb();
   if (!db) return undefined;
   const records = await db
     .select()
     .from(receivedWorkflowOccurrences)
-    .where(and(eq(receivedWorkflowOccurrences.alertTypeId, alertTypeId), eq(receivedWorkflowOccurrences.externalId, externalId)))
+    .where(and(eq(receivedWorkflowOccurrences.alertTypeId, alertTypeId), eq(receivedWorkflowOccurrences.tenantId, tenantId), eq(receivedWorkflowOccurrences.externalId, externalId)))
     .limit(1);
   return records[0];
 }
@@ -350,10 +349,11 @@ export async function updateAlertType(
 ) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
+  const tenantId = await getUserTenantId(userId);
   await db
     .update(alertTypes)
     .set({ ...values, updatedAt: new Date() })
-    .where(and(eq(alertTypes.id, alertTypeId), eq(alertTypes.userId, userId)));
+    .where(and(eq(alertTypes.id, alertTypeId), eq(alertTypes.userId, userId), eq(alertTypes.tenantId, tenantId)));
   return getAlertTypeForUser(userId, alertTypeId);
 }
 
@@ -383,6 +383,7 @@ export async function createDispatchedAlert(input: {
 export async function updateDispatchedAlert(
   alertId: number,
   input: {
+    tenantId: string;
     status: DeliveryStatus;
     responseHttpStatus?: number | null;
     responseSummary?: string | null;
@@ -394,8 +395,8 @@ export async function updateDispatchedAlert(
   if (!db) throw new Error("Banco de dados indisponível.");
   await db
     .update(dispatchedAlerts)
-    .set({ ...input, updatedAt: new Date() })
-    .where(eq(dispatchedAlerts.id, alertId));
+    .set({ status: input.status, responseHttpStatus: input.responseHttpStatus, responseSummary: input.responseSummary, failureReason: input.failureReason, attemptCount: input.attemptCount, updatedAt: new Date() })
+    .where(and(eq(dispatchedAlerts.id, alertId), eq(dispatchedAlerts.tenantId, input.tenantId)));
 }
 
 export async function recordMockReceipt(input: {
@@ -412,18 +413,20 @@ export async function recordMockReceipt(input: {
 export async function listDispatchedAlerts(userId: number, limit = 60) {
   const db = await getDb();
   if (!db) return [];
+  const tenantId = await getUserTenantId(userId);
   return db
     .select()
     .from(dispatchedAlerts)
-    .where(eq(dispatchedAlerts.userId, userId))
+    .where(and(eq(dispatchedAlerts.userId, userId), eq(dispatchedAlerts.tenantId, tenantId)))
     .orderBy(desc(dispatchedAlerts.sentAt))
     .limit(limit);
 }
 
 export async function queryWorkflowMonitor(database: NonNullable<Awaited<ReturnType<typeof getDb>>>, userId: number, limit = 60) {
+  const tenantId = await getUserTenantId(userId);
   const [occurrences, logs] = await Promise.all([
-    database.select().from(receivedWorkflowOccurrences).where(eq(receivedWorkflowOccurrences.userId, userId)).orderBy(desc(receivedWorkflowOccurrences.receivedAt)).limit(limit),
-    database.select().from(workflowProcessLogs).where(eq(workflowProcessLogs.userId, userId)).orderBy(desc(workflowProcessLogs.createdAt)).limit(limit),
+    database.select().from(receivedWorkflowOccurrences).where(and(eq(receivedWorkflowOccurrences.userId, userId), eq(receivedWorkflowOccurrences.tenantId, tenantId))).orderBy(desc(receivedWorkflowOccurrences.receivedAt)).limit(limit),
+    database.select().from(workflowProcessLogs).where(and(eq(workflowProcessLogs.userId, userId), eq(workflowProcessLogs.tenantId, tenantId))).orderBy(desc(workflowProcessLogs.createdAt)).limit(limit),
   ]);
   return { occurrences, logs };
 }
@@ -437,6 +440,7 @@ export async function getWorkflowMonitor(userId: number, limit = 60) {
 export async function getDashboardMetrics(userId: number) {
   const db = await getDb();
   if (!db) return [];
+  const tenantId = await getUserTenantId(userId);
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   return db
     .select({
@@ -445,7 +449,7 @@ export async function getDashboardMetrics(userId: number) {
       total: sql<number>`count(*)`,
     })
     .from(dispatchedAlerts)
-    .where(and(eq(dispatchedAlerts.userId, userId), gte(dispatchedAlerts.sentAt, since)))
+    .where(and(eq(dispatchedAlerts.userId, userId), eq(dispatchedAlerts.tenantId, tenantId), gte(dispatchedAlerts.sentAt, since)))
     .groupBy(dispatchedAlerts.category, dispatchedAlerts.status);
 }
 
@@ -464,11 +468,11 @@ export async function recordOutboxEvent(input: NewEventOutboxRow) {
 
 export async function updateOutboxDelivery(
   id: number,
-  input: { status: string; deliveredCount: number; failedCount: number }
+  input: { tenantId: string; status: string; deliveredCount: number; failedCount: number }
 ) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
-  await db.update(eventOutbox).set({ ...input, updatedAt: new Date() }).where(eq(eventOutbox.id, id));
+  await db.update(eventOutbox).set({ status: input.status, deliveredCount: input.deliveredCount, failedCount: input.failedCount, updatedAt: new Date() }).where(and(eq(eventOutbox.id, id), eq(eventOutbox.tenantId, input.tenantId)));
 }
 
 /** Assinaturas ativas de um tenant para uma categoria (ou "todas", category=null) que combinam com o evento. */
@@ -497,16 +501,18 @@ export async function createEventSubscription(input: NewEventSubscription) {
 export async function listEventSubscriptions(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(eventSubscriptions).where(eq(eventSubscriptions.userId, userId)).orderBy(desc(eventSubscriptions.createdAt));
+  const tenantId = await getUserTenantId(userId);
+  return db.select().from(eventSubscriptions).where(and(eq(eventSubscriptions.userId, userId), eq(eventSubscriptions.tenantId, tenantId))).orderBy(desc(eventSubscriptions.createdAt));
 }
 
 export async function setEventSubscriptionActive(userId: number, id: number, isActive: boolean) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
+  const tenantId = await getUserTenantId(userId);
   await db
     .update(eventSubscriptions)
     .set({ isActive, updatedAt: new Date() })
-    .where(and(eq(eventSubscriptions.id, id), eq(eventSubscriptions.userId, userId)));
+    .where(and(eq(eventSubscriptions.id, id), eq(eventSubscriptions.userId, userId), eq(eventSubscriptions.tenantId, tenantId)));
 }
 
 export async function getSubscriptionBySubscriberApiKey(subscriberApiKey: string) {
@@ -518,4 +524,71 @@ export async function getSubscriptionBySubscriberApiKey(subscriberApiKey: string
     .where(and(eq(eventSubscriptions.subscriberApiKey, subscriberApiKey), eq(eventSubscriptions.isActive, true)))
     .limit(1);
   return records[0];
+}
+
+export async function createInboundCredentialForUser(input: {
+  userId: number;
+  alertTypeId: number;
+  expiresAt?: Date | null;
+  rotateCredentialId?: number;
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Banco de dados indisponível.");
+  const tenantId = await getUserTenantId(input.userId);
+  const alertType = await getAlertTypeForUser(input.userId, input.alertTypeId);
+  if (!alertType || alertType.tenantId !== tenantId) throw new Error("Tipo de alerta não pertence ao tenant.");
+  const generated = createInboundCredential();
+  const secretHash = await hashInboundSecret(generated.secret);
+  const result = await database.transaction(async tx => {
+    if (input.rotateCredentialId) {
+      await tx.update(integrationCredentials)
+        .set({ status: "revoked", revokedAt: new Date() })
+        .where(and(
+          eq(integrationCredentials.id, input.rotateCredentialId),
+          eq(integrationCredentials.userId, input.userId),
+          eq(integrationCredentials.tenantId, tenantId),
+          eq(integrationCredentials.status, "active")
+        ));
+    }
+    return tx.insert(integrationCredentials).values({
+      userId: input.userId,
+      tenantId,
+      alertTypeId: input.alertTypeId,
+      publicId: generated.publicId,
+      secretHash,
+      status: "active",
+      expiresAt: input.expiresAt ?? null,
+      rotatedFromId: input.rotateCredentialId ?? null,
+    });
+  });
+  return { id: Number(result[0].insertId), publicId: generated.publicId, credential: generated.presented, expiresAt: input.expiresAt ?? null };
+}
+
+export async function revokeInboundCredential(userId: number, credentialId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Banco de dados indisponível.");
+  const tenantId = await getUserTenantId(userId);
+  await database.update(integrationCredentials)
+    .set({ status: "revoked", revokedAt: new Date() })
+    .where(and(
+      eq(integrationCredentials.id, credentialId),
+      eq(integrationCredentials.userId, userId),
+      eq(integrationCredentials.tenantId, tenantId),
+      eq(integrationCredentials.status, "active")
+    ));
+}
+
+export async function authenticateInboundCredential(value: string | undefined) {
+  const database = await getDb();
+  const parsed = parseInboundCredential(value);
+  if (!database || !parsed) return undefined;
+  const records = await database.select().from(integrationCredentials)
+    .where(and(eq(integrationCredentials.publicId, parsed.publicId), eq(integrationCredentials.status, "active")))
+    .limit(1);
+  const credential = records[0];
+  if (!credential || (credential.expiresAt && credential.expiresAt <= new Date())) return undefined;
+  if (!await verifyInboundSecret(parsed.secret, credential.secretHash)) return undefined;
+  await database.update(integrationCredentials).set({ lastUsedAt: new Date() }).where(eq(integrationCredentials.id, credential.id));
+  const alertType = await getAlertTypeForUser(credential.userId, credential.alertTypeId);
+  return alertType && alertType.tenantId === credential.tenantId ? { credential, alertType } : undefined;
 }

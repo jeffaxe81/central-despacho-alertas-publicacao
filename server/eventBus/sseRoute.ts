@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, RequestHandler, Response } from "express";
 import * as db from "../db";
 import { registerSseClient, unregisterSseClient } from "./sseBroadcaster";
 import { logEvent } from "../observability/logger";
@@ -13,8 +13,12 @@ function extractApiKey(req: Request): string | undefined {
   return typeof queryKey === "string" ? queryKey.trim() : undefined;
 }
 
-export function registerEventBusRoutes(app: Express, store: Pick<typeof db, "getSubscriptionBySubscriberApiKey"> = db) {
-  app.get("/api/events/stream", async (req: Request, res: Response) => {
+export function registerEventBusRoutes(
+  app: Express,
+  store: Pick<typeof db, "getSubscriptionBySubscriberApiKey"> = db,
+  middleware?: RequestHandler
+) {
+  app.get("/api/events/stream", ...(middleware ? [middleware] : []), async (req: Request, res: Response) => {
     const apiKey = extractApiKey(req);
     if (!apiKey) {
       res.status(401).json({ error: "API key ausente. Use 'Authorization: Bearer <key>' ou '?api_key='." });
