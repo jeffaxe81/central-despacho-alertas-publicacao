@@ -32,4 +32,22 @@ describe("canal shadow canônico interno", () => {
 
     unsubscribe();
   });
+
+  it("isola falha de um assinante sem impedir os demais", async () => {
+    const received: unknown[] = [];
+    const canonicalEvent = { id: "evt_shadow_failure" };
+
+    subscribeCanonicalShadow(() => {
+      throw new Error("falha do observador shadow");
+    });
+    subscribeCanonicalShadow(message => {
+      received.push(message.canonicalEvent);
+    });
+
+    await expect(
+      publishCanonicalShadowEvent({ canonicalEvent, equivalent: false })
+    ).resolves.toEqual({ delivered: 1, failed: 1 });
+
+    expect(received).toEqual([canonicalEvent]);
+  });
 });
