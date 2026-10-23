@@ -19,8 +19,8 @@ const strictThresholds = {
   maxDivergent: 0,
 };
 const permissiveThresholds = {
-  minDeliverySuccessRate: 0.1,
-  minEquivalenceRate: 0.1,
+  minDeliverySuccessRate: 0,
+  minEquivalenceRate: 0,
   maxFailed: 10,
   maxDivergent: 10,
 };
