@@ -5,9 +5,9 @@ name: CI
 # db.ts opera em modo degradado (sem DATABASE_URL) e os testes usam mocks.
 on:
   push:
-    branches: [main]
+    branches: [main, 'mue-*']
   pull_request:
-    branches: [main]
+    branches: [main, 'mue-*']
 
 jobs:
   quality:
