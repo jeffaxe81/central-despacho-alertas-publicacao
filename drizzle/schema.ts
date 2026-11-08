@@ -74,6 +74,8 @@ export const alertTypes = mysqlTable(
     headersJson: text("headers_json").notNull(),
     authToken: text("auth_token"),
     apiKey: text("api_key"),
+    /** Digest HMAC da API key de entrada (busca sem armazenar o valor em claro). */
+    apiKeyDigest: varchar("api_key_digest", { length: 64 }),
     apiKeyHeader: varchar("api_key_header", { length: 100 }).notNull().default("x-api-key"),
     payloadTemplate: text("payload_template").notNull(),
     isTestMode: boolean("is_test_mode").notNull().default(true),
@@ -88,6 +90,7 @@ export const alertTypes = mysqlTable(
   },
   table => [
     uniqueIndex("alert_types_user_category_unique").on(table.userId, table.category),
+    index("alert_types_api_key_digest_idx").on(table.apiKeyDigest),
     index("alert_types_schedule_task_idx").on(table.scheduleCronTaskUid),
   ]
 );
@@ -247,7 +250,10 @@ export const eventSubscriptions = mysqlTable(
     outboundApiKeyHeader: varchar("outbound_api_key_header", { length: 100 }).default("X-ALRT-API-Key"),
     outboundApiKey: varchar("outbound_api_key", { length: 4000 }),
     /** API key que o assinante apresenta para autenticar (SSE) ou validar a assinatura. Única. */
-    subscriberApiKey: varchar("subscriber_api_key", { length: 128 }).notNull(),
+    /** Legado: em texto puro. Após o backfill fica nulo; a verificação usa subscriberKeyDigest. */
+    subscriberApiKey: varchar("subscriber_api_key", { length: 128 }),
+    /** Digest HMAC da chave do assinante (única). */
+    subscriberKeyDigest: varchar("subscriber_key_digest", { length: 64 }),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
@@ -255,6 +261,7 @@ export const eventSubscriptions = mysqlTable(
   table => [
     index("event_subscriptions_tenant_category_idx").on(table.tenantId, table.category),
     uniqueIndex("event_subscriptions_subscriber_key_unique").on(table.subscriberApiKey),
+    uniqueIndex("event_subscriptions_subscriber_digest_unique").on(table.subscriberKeyDigest),
   ]
 );
 

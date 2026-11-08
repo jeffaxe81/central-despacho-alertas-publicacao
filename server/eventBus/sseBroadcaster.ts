@@ -15,6 +15,7 @@ import type { Response } from "express";
  * para isso nesta sessão (Seção 46 — não inventar/assumir infraestrutura).
  */
 
+/** Canal interno: id da assinatura (nunca a chave em claro). */
 type SubscriberKey = string;
 
 const clientsByKey = new Map<SubscriberKey, Set<Response>>();
