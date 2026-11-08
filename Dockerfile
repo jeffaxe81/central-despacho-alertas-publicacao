@@ -18,6 +18,11 @@ COPY . .
 # é apenas bundling estático (validado em sessão de desenvolvimento).
 RUN pnpm run build
 
+# Dedicated one-shot migration target for the optional AXE Dispatch bundle.
+# Runs before the alerts service starts; never touches the Dispatch database.
+FROM build AS migration
+CMD ["pnpm", "exec", "drizzle-kit", "migrate"]
+
 # --- Etapa 2: runtime ---
 FROM node:20-slim AS runtime
 WORKDIR /app
