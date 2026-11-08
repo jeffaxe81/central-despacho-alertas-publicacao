@@ -12,6 +12,7 @@ import { staticMapHandler } from "../staticMap";
 import { registerWorkflowRoutes } from "../workflowRoutes";
 import { registerEventBusRoutes } from "../eventBus/sseRoute";
 import { serveStatic, setupVite } from "./vite";
+import { registerHealthRoutes } from "./healthRoutes";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -38,6 +39,8 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // Public, low-information probes for independently managed deployment.
+  registerHealthRoutes(app);
   registerStorageProxy(app);
   app.get("/api/maps/static", staticMapHandler);
   app.post("/api/mock/dispatch", mockDispatchHandler);
