@@ -7,6 +7,7 @@ import { logEvent } from "./observability/logger";
 import { publishEvent } from "./eventBus/publish";
 import { publishCanonicalShadowEvent } from "./eventBus/canonicalShadow";
 import { CONNECTORS } from "../shared/connectors/registry";
+import { decryptSecret } from "./_core/secrets";
 import type { ConnectorDescriptor } from "../shared/connectors/types";
 import { DEFAULT_SIMULATION_COORDINATES, type EventCategory, type Severity } from "../shared/alertSimulation";
 
@@ -491,8 +492,8 @@ export async function dispatchConfiguredAlert(
       : await postWithRetry({
           endpointUrl: alertType.endpointUrl,
           headers: parseHeaders(alertType.headersJson),
-          authToken: alertType.authToken,
-          apiKey: alertType.apiKey,
+          authToken: decryptSecret(alertType.authToken),
+          apiKey: decryptSecret(alertType.apiKey),
           apiKeyHeader: alertType.apiKeyHeader,
           hmacSecret: isAlrtAxeEnvelope
             ? (() => {

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { randomUUID } from "node:crypto";
 import {
@@ -17,6 +17,7 @@ import {
   workflowProcessLogs,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { decryptSecret, encryptSecret, isEncryptedSecret, secretDigest } from "./_core/secrets";
 import { DEFAULT_TENANT_ID } from "../shared/tenant";
 import {
   DEFAULT_EVENT_SETTINGS,
@@ -272,7 +273,11 @@ export async function getAlertTypeByScheduleTask(taskUid: string) {
 export async function getAlertTypeByApiKey(apiKey: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const records = await db.select().from(alertTypes).where(eq(alertTypes.apiKey, apiKey)).limit(1);
+  const records = await db
+    .select()
+    .from(alertTypes)
+    .where(eq(alertTypes.apiKeyDigest, secretDigest(apiKey)))
+    .limit(1);
   return records[0];
 }
 
@@ -350,9 +355,18 @@ export async function updateAlertType(
 ) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
+  const { apiKey, authToken, ...rest } = values;
+  const secretFields: Partial<Pick<NewAlertType, "apiKey" | "apiKeyDigest" | "authToken">> = {};
+  if (apiKey !== undefined) {
+    secretFields.apiKey = apiKey ? encryptSecret(apiKey) : null;
+    secretFields.apiKeyDigest = apiKey ? secretDigest(apiKey) : null;
+  }
+  if (authToken !== undefined) {
+    secretFields.authToken = authToken ? encryptSecret(authToken) : null;
+  }
   await db
     .update(alertTypes)
-    .set({ ...values, updatedAt: new Date() })
+    .set({ ...rest, ...secretFields, updatedAt: new Date() })
     .where(and(eq(alertTypes.id, alertTypeId), eq(alertTypes.userId, userId)));
   return getAlertTypeForUser(userId, alertTypeId);
 }
@@ -487,17 +501,44 @@ export async function listActiveSubscriptionsForEvent(tenantId: string, category
     );
 }
 
-export async function createEventSubscription(input: NewEventSubscription) {
+export interface CreateEventSubscriptionInput {
+  userId: number;
+  tenantId: string;
+  label: string;
+  category: string | null;
+  deliveryMode: string;
+  endpointUrl: string | null;
+  headersJson: string;
+  outboundApiKeyHeader: string;
+  outboundApiKey: string | null;
+  /** Valor em claro, entregue ao cliente uma única vez; só o digest é persistido. */
+  subscriberApiKey: string;
+  isActive: boolean;
+}
+
+export async function createEventSubscription(input: CreateEventSubscriptionInput) {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível.");
-  const result = await db.insert(eventSubscriptions).values(input);
+  const { subscriberApiKey, outboundApiKey, ...rest } = input;
+  const row: NewEventSubscription = {
+    ...rest,
+    outboundApiKey: outboundApiKey ? encryptSecret(outboundApiKey) : null,
+    subscriberApiKey: null,
+    subscriberKeyDigest: secretDigest(subscriberApiKey),
+  };
+  const result = await db.insert(eventSubscriptions).values(row);
   return Number(result[0].insertId);
 }
 
 export async function listEventSubscriptions(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(eventSubscriptions).where(eq(eventSubscriptions.userId, userId)).orderBy(desc(eventSubscriptions.createdAt));
+  const rows = await db
+    .select()
+    .from(eventSubscriptions)
+    .where(eq(eventSubscriptions.userId, userId))
+    .orderBy(desc(eventSubscriptions.createdAt));
+  return rows.map(toSafeSubscription);
 }
 
 export async function setEventSubscriptionActive(userId: number, id: number, isActive: boolean) {
@@ -515,7 +556,76 @@ export async function getSubscriptionBySubscriberApiKey(subscriberApiKey: string
   const records = await db
     .select()
     .from(eventSubscriptions)
-    .where(and(eq(eventSubscriptions.subscriberApiKey, subscriberApiKey), eq(eventSubscriptions.isActive, true)))
+    .where(and(eq(eventSubscriptions.subscriberKeyDigest, secretDigest(subscriberApiKey)), eq(eventSubscriptions.isActive, true)))
     .limit(1);
   return records[0];
+}
+
+/** Remove da linha tudo que não deve sair do servidor (segredos em claro ou cifrados). */
+export function toSafeSubscription<T extends { outboundApiKey: string | null; subscriberApiKey: string | null; subscriberKeyDigest: string | null }>(row: T) {
+  const { outboundApiKey, subscriberApiKey: _legacy, subscriberKeyDigest: _digest, ...rest } = row;
+  return { ...rest, hasOutboundApiKey: Boolean(outboundApiKey) };
+}
+
+/**
+ * Remove registros do outbox já finalizados (qualquer status diferente de "pending")
+ * anteriores à janela de retenção. Retorna a quantidade removida.
+ */
+export async function pruneEventOutbox(retentionDays: number, now: Date = new Date()) {
+  const db = await getDb();
+  if (!db) return 0;
+  const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+  const result = await db
+    .delete(eventOutbox)
+    .where(and(lt(eventOutbox.createdAt, cutoff), ne(eventOutbox.status, "pending")));
+  return Number(result[0].affectedRows ?? 0);
+}
+
+/**
+ * Converte segredos gravados em texto puro por versões anteriores: cifra os valores
+ * de saída, calcula os digests de busca e apaga a chave de assinante em claro.
+ * Idempotente: pode rodar a cada inicialização sem efeito colateral.
+ */
+export async function backfillSecrets() {
+  const db = await getDb();
+  if (!db) return { alertTypes: 0, subscriptions: 0 };
+
+  let alertTypeRows = 0;
+  const types = await db.select().from(alertTypes);
+  for (const row of types) {
+    const update: Partial<NewAlertType> = {};
+    if (row.apiKey) {
+      const plain = decryptSecret(row.apiKey) ?? "";
+      if (!isEncryptedSecret(row.apiKey)) update.apiKey = encryptSecret(plain);
+      if (row.apiKeyDigest !== secretDigest(plain)) update.apiKeyDigest = secretDigest(plain);
+    }
+    if (row.authToken && !isEncryptedSecret(row.authToken)) {
+      update.authToken = encryptSecret(row.authToken);
+    }
+    if (Object.keys(update).length > 0) {
+      await db.update(alertTypes).set(update).where(eq(alertTypes.id, row.id));
+      alertTypeRows += 1;
+    }
+  }
+
+  let subscriptionRows = 0;
+  const subscriptions = await db.select().from(eventSubscriptions);
+  for (const row of subscriptions) {
+    const update: Partial<NewEventSubscription> = {};
+    if (row.subscriberApiKey && !row.subscriberKeyDigest) {
+      update.subscriberKeyDigest = secretDigest(row.subscriberApiKey);
+      update.subscriberApiKey = null;
+    } else if (row.subscriberApiKey) {
+      update.subscriberApiKey = null;
+    }
+    if (row.outboundApiKey && !isEncryptedSecret(row.outboundApiKey)) {
+      update.outboundApiKey = encryptSecret(row.outboundApiKey);
+    }
+    if (Object.keys(update).length > 0) {
+      await db.update(eventSubscriptions).set(update).where(eq(eventSubscriptions.id, row.id));
+      subscriptionRows += 1;
+    }
+  }
+
+  return { alertTypes: alertTypeRows, subscriptions: subscriptionRows };
 }

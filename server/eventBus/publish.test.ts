@@ -63,13 +63,13 @@ describe("publishEvent", () => {
   it("faz broadcast SSE para assinaturas do tipo 'sse' e marca 'failed' quando ninguém está conectado", async () => {
     mockDb.recordOutboxEvent.mockResolvedValue(2);
     mockDb.listActiveSubscriptionsForEvent.mockResolvedValue([
-      { id: 9, deliveryMode: "sse", subscriberApiKey: "sub-key-9" } as any,
+      { id: 9, deliveryMode: "sse", subscriberApiKey: null, subscriberKeyDigest: "digest-9" } as any,
     ]);
     mockBroadcast.mockReturnValue(0);
 
     await publishEvent(baseEvent);
 
-    expect(mockBroadcast).toHaveBeenCalledWith("sub-key-9", baseEvent.payload);
+    expect(mockBroadcast).toHaveBeenCalledWith("9", baseEvent.payload);
     expect(mockDb.updateOutboxDelivery).toHaveBeenCalledWith(2, { status: "failed", deliveredCount: 0, failedCount: 0 });
   });
 

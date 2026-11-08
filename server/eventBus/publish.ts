@@ -2,6 +2,7 @@ import * as db from "../db";
 import { postWithRetry } from "../alertEngine";
 import { logEvent } from "../observability/logger";
 import { broadcastToSse } from "./sseBroadcaster";
+import { decryptSecret } from "../_core/secrets";
 
 export interface PublishableEvent {
   userId: number;
@@ -68,7 +69,7 @@ export async function publishEvent(event: PublishableEvent): Promise<void> {
 
   for (const subscription of subscriptions) {
     if (subscription.deliveryMode === "sse") {
-      const reached = broadcastToSse(subscription.subscriberApiKey, event.payload);
+      const reached = broadcastToSse(String(subscription.id), event.payload);
       if (reached > 0) delivered += 1;
       logEvent(reached > 0 ? "info" : "warn", "eventbus.sse_broadcast", {
         correlationId: event.correlationId,
@@ -84,7 +85,7 @@ export async function publishEvent(event: PublishableEvent): Promise<void> {
         const result = await postWithRetry({
           endpointUrl: subscription.endpointUrl,
           headers: JSON.parse(subscription.headersJson || "{}"),
-          apiKey: subscription.outboundApiKey,
+          apiKey: decryptSecret(subscription.outboundApiKey),
           apiKeyHeader: subscription.outboundApiKeyHeader ?? undefined,
           payload: event.payload,
         });

@@ -152,3 +152,17 @@ Decisão do usuário: Opção 2 (fila gerenciada) como alvo, Opções 1 e 3 como
 - A migração `0010_add_tenant_id.sql` não foi aplicada a nenhum banco real (sem `DATABASE_URL` de ambiente configurada nesta sessão). A coluna existe no schema e na migração gerada, mas seu efeito em um banco vivo não foi observado nem testado nesta sessão.
 - O isolamento lógico por tenant (filtrar queries por `tenantId`) não foi implementado — apenas a coluna existe (Ciclo 4, Fase 1). Ver Fase 2 no backlog. **[Fase 2 — propagação nas escritas — concluída no Ciclo 5; filtro de leitura permanece Fase 3, condicionado a feature multiusuário]**
 - A resolução de `getUserTenantId` a partir da tabela `users` em um banco real não foi testada nesta sessão — só o fallback sem banco foi verificado.
+
+## 9. Status dos gaps após a release 1.13.0
+
+| # | Gap | Status |
+| --- | --- | --- |
+| 2 | Isolamento por `tenant_id` | Inalterado nesta release (fora do escopo) |
+| 6 | Segredos em texto puro no banco | **Corrigido**: cifragem AES-256-GCM e digests HMAC; backfill na inicialização. Rotação de chave pendente. |
+| — | Chave de assinante exposta na listagem | **Corrigido**: listagem sem segredos |
+| — | Chave de API na query string do SSE | **Corrigido**: desativada por padrão (`SSE_ALLOW_QUERY_API_KEY`) |
+| — | Sem limite de tentativas no login | **Corrigido**: limite por IP (`RATE_LIMIT_AUTH_MAX`) |
+| — | Crescimento sem limite do outbox | **Corrigido**: retenção configurável (`EVENT_OUTBOX_RETENTION_DAYS`) |
+| — | Auditoria de dependências no CI | **Adicionado** (não bloqueante) |
+
+Pendências declaradas: rotação da `SECRETS_ENCRYPTION_KEY`, rate limit compartilhado entre instâncias, backfill validado apenas por revisão (sem MySQL no ambiente de desenvolvimento), validação do build Docker e demais itens externos (broker, SSE multi-instância, contrato do CRM).

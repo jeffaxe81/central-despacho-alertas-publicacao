@@ -60,3 +60,12 @@ A entrega real permanece inalterada: fora do modo teste, o dispatcher continua u
 ## Qualidade
 
 Execute `pnpm test` para rodar a suíte automatizada e `pnpm check` para validar a tipagem. A suíte cobre a criação de histórico, geração contextualizada, reprodução por semente, contrato canônico v1, adaptador ALRT → AXE, shadow de compatibilidade no mock, geração canônica antes da fronteira do mock, exigência de canônico explícito para comparação shadow, observabilidade estruturada do canônico em modo teste, transporte pelo canal shadow interno, publicação shadow originada no dispatcher, observabilidade de `delivered`/`failed`, isolamento de falhas de assinantes, validação de cabeçalhos e payloads, tentativas de entrega, intervalos de automação e procedimentos de configuração.
+
+## Segredos, limites e retenção (1.13.0)
+
+- **`SECRETS_ENCRYPTION_KEY`** (obrigatória em produção, mínimo de 32 caracteres): chave-mestra usada para cifrar API keys de saída, tokens de autorização e chaves de saída de webhooks, e para calcular os digests que localizam chaves de entrada e de assinantes. Gere com `openssl rand -base64 48`. **Guarde a chave com cuidado: sem ela os segredos cifrados não podem ser recuperados.** Trocar a chave exige reinserir os segredos.
+- Chaves de assinante são exibidas uma única vez na criação e guardadas apenas como digest.
+- **`SSE_ALLOW_QUERY_API_KEY`** (padrão: desligada): habilita `?api_key=` no stream SSE. Prefira o header `Authorization: Bearer`.
+- **Limites de requisição** (em memória, por processo): `RATE_LIMIT_AUTH_MAX` (10 por 15 min, login/cadastro), `RATE_LIMIT_INGEST_MAX` (120 por min, ocorrências), `RATE_LIMIT_SSE_MAX` (30 por min, abertura de SSE).
+- **`TRUST_PROXY`**: defina quando a aplicação estiver atrás de proxy reverso, para que o limite use o IP real do cliente.
+- **`EVENT_OUTBOX_RETENTION_DAYS`** (padrão: 30; `0` desativa): remove do outbox os registros finalizados mais antigos que a janela.

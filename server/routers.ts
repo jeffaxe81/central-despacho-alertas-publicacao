@@ -9,7 +9,7 @@ import {
   EVENT_CATEGORIES,
   SEVERITY_OPTIONS,
 } from "../shared/alertSimulation";
-import type { Severity } from "../shared/alertSimulation";
+import type { EventCategory, Severity } from "../shared/alertSimulation";
 import { dispatchConfiguredAlert, generateOccurrence, interpolatePayload, intervalToCron, parseHeaders } from "./alertEngine";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { createHeartbeatJob, deleteHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
@@ -180,8 +180,9 @@ export const appRouter = router({
         defaultLatitude: input.defaultLatitude,
         defaultLongitude: input.defaultLongitude,
         useGeneralLocation: input.useGeneralLocation,
-        authToken: input.authToken === undefined ? current.authToken : input.authToken.trim() || null,
-        apiKey: input.apiKey === undefined ? current.apiKey : input.apiKey.trim() || null,
+        // undefined = manter o valor atual (que permanece cifrado no banco).
+        authToken: input.authToken === undefined ? undefined : input.authToken.trim() || null,
+        apiKey: input.apiKey === undefined ? undefined : input.apiKey.trim() || null,
         apiKeyHeader: input.apiKeyHeader,
       });
       if (!updated) throw new Error("Não foi possível atualizar o tipo de evento.");
@@ -189,7 +190,7 @@ export const appRouter = router({
     }),
     preview: protectedProcedure
       .input(z.object({ category: z.enum(categoryValues), severity: z.enum(severityValues) }))
-      .query(({ input }) => generateOccurrence(input.category as any, input.severity as any)),
+      .query(({ input }) => generateOccurrence(input.category as EventCategory, input.severity as Severity)),
     dispatch: protectedProcedure.input(z.object({
       id: z.number().int().positive(),
       latitude: z.number().min(-90).max(90).optional(),
